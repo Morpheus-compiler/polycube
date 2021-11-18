@@ -28,7 +28,7 @@
 #include <uapi/linux/pkt_cls.h>
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
-#define NAT_MAP_DIM 32768
+#define NAT_MAP_DIM 65535
 #define IP_CSUM_OFFSET (sizeof(struct eth_hdr) + offsetof(struct iphdr, check))
 #define UDP_CSUM_OFFSET                            \
   (sizeof(struct eth_hdr) + sizeof(struct iphdr) + \

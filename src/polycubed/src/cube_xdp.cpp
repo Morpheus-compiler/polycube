@@ -29,9 +29,9 @@ namespace polycubed {
 CubeXDP::CubeXDP(const std::string &name, const std::string &service_name,
                  const std::vector<std::string> &ingress_code,
                  const std::vector<std::string> &egress_code, LogLevel level,
-                 CubeType type, bool shadow, bool span)
+                 CubeType type, bool shadow, bool span, bool dyn_opt_enabled, const std::vector<std::string> &cflags)
     : Cube(name, service_name, PatchPanel::get_xdp_instance(), level, type,
-           shadow, span),
+           shadow, span, dyn_opt_enabled, cflags),
       attach_flags_(0) {
   switch (type) {
   // FIXME: replace by definitions in if_link.h when update to new kernel.
@@ -86,7 +86,7 @@ void CubeXDP::reload(const std::string &code, int index, ProgramType type) {
         std::unique_lock<std::mutex> bcc_guard(bcc_mutex);
         std::unique_ptr<ebpf::BPF> new_bpf_program = std::unique_ptr<ebpf::BPF>(
             new ebpf::BPF(0, nullptr, false, name_, false,
-                          egress_programs_tc_.at(index).get()));
+                          egress_programs_.at(index).get()));
 
         bcc_guard.unlock();
         compileTC(*new_bpf_program, code);
@@ -277,13 +277,14 @@ void CubeXDP::compile(ebpf::BPF &bpf, const std::string &code, int index,
                    std::to_string(static_cast<int>(type))));
 
   std::lock_guard<std::mutex> guard(bcc_mutex);
+  
   auto init_res = bpf.init(all_code, cflags);
 
   if (init_res.code() != 0) {
     logger->error("failed to init XDP program: {0}", init_res.msg());
     throw BPFError("failed to init XDP program: " + init_res.msg());
   }
-  logger->debug("XDP program compileed");
+  logger->debug("XDP program compiled");
 }
 
 int CubeXDP::load(ebpf::BPF &bpf, ProgramType type) {
@@ -446,6 +447,12 @@ int pcn_pkt_redirect(struct CTXTYPE *pkt, struct pkt_metadata *md, u32 out_port)
   }
 
   return XDP_ABORTED;
+}
+
+static __always_inline
+void pcn_pkt_recirculate(struct CTXTYPE *skb, u32 port) {
+  u32 index = port << 16 | CUBE_ID;
+  xdp_nodes.call(skb, index);
 }
 #endif
 

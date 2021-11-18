@@ -19,13 +19,12 @@
    ======================= */
 
 // #include <bcc/helpers.h>
-
-BPF_ARRAY(index64, uint16_t, 64);
+BPF_TABLE("array", int, uint16_t, index64, 64);
+//BPF_ARRAY(index64, uint16_t, 64);
 
 // This Struct is initialized by the parser
 // This is allocated with MAX Number of possible elements.
 // _NR_ELEMENTS is the current value
-#if _NR_ELEMENTS > 0
 struct elements {
   // _MAXRULES defined by control plane as MAXRULES/63 + .....
   uint64_t bits[_MAXRULES];
@@ -37,10 +36,26 @@ static __always_inline struct elements *getShared() {
   int key = 0;
   return sharedEle.lookup(&key);
 }
-#endif
 
 BPF_TABLE("extern", int, u64, pkts_default__DIRECTION, 1);
 BPF_TABLE("extern", int, u64, bytes_default__DIRECTION, 1);
+
+BPF_TABLE("extern", int, u64, default_action__DIRECTION, 1);
+
+static __always_inline int applyDefaultAction(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action__DIRECTION.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
+
 static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
   u64 *value;
   int zero = 0;
@@ -59,36 +74,16 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 // since pragma unroll is not working with N=1
 // this case is managed as separated case
 
-#if _NR_ELEMENTS > 0
-  int key = 0;
-  struct elements *ele = getShared();
-  if (ele == NULL) {
-    /*Can't happen. The PERCPU is preallocated.*/
-    return RX_DROP;
-  }
-  uint16_t *matchingResult = 0;
+int key = 0;
+struct elements *ele = getShared();
+if (ele == NULL) {
+  /*Can't happen. The PERCPU is preallocated.*/
+  return RX_DROP;
+}
+uint16_t *matchingResult = 0;
 
-#if _NR_ELEMENTS == 1
-  uint64_t bits = (ele->bits)[0];
-  if (bits != 0) {
-    int index = (int)(((bits ^ (bits - 1)) * 0x03f79d71b4cb0a89) >> 58);
-
-    matchingResult = index64.lookup(&index);
-    if (matchingResult == NULL) {
-      /*This can't happen.*/
-      return RX_DROP;
-    }
-    (ele->bits)[0] = *matchingResult;
-    pcn_log(ctx, LOG_DEBUG, "Bitscan _DIRECTION Matching element 0 offset %d. ",
-            *matchingResult);
-    call_bpf_program(ctx, _NEXT_HOP_1);
-  }
-
-#else
-  int i = 0;
-
-#pragma unroll
-  for (i = 0; i < _NR_ELEMENTS; ++i) {
+#pragma nounroll
+  for (int i = 0; i < _NR_ELEMENTS; ++i) {
     uint64_t bits = (ele->bits)[i];
     if (bits != 0) {
       int index = (int)(((bits ^ (bits - 1)) * 0x03f79d71b4cb0a89) >> 58);
@@ -97,21 +92,20 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
         /*This can't happen*/
         return RX_DROP;
       }
+      index64.update(&index, matchingResult);
 
       int globalBit = *matchingResult + i * 63;
       pcn_log(ctx, LOG_DEBUG,
-              "Bitscan _DIRECTION Matching element %d offset %d. ", i,
+              "[BitScan]  _DIRECTION Matching element %d offset %d. ", i,
               *matchingResult);
       (ele->bits)[0] = globalBit;
       call_bpf_program(ctx, _NEXT_HOP_1);
 
     }  // ele->bits[i] != 0
   }    // end loop
-#endif
 
-#endif
   // DEFAULT ACTION (?)
-  pcn_log(ctx, LOG_DEBUG, "No bit set to 1. ");
+  pcn_log(ctx, LOG_DEBUG, "[BitScan] No bit set to 1. ");
   incrementDefaultCounters_DIRECTION(md->packet_len);
-  _DEFAULTACTION;
+  return applyDefaultAction(ctx);
 }

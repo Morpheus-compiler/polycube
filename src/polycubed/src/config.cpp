@@ -279,7 +279,7 @@ void Config::setCertBlacklistPath(const std::string &value) {
 }
 
 void Config::create_configuration_file(const std::string &path) {
-  mkdir(CONFIGFILEDIR, 0600);
+  mkdir(CONFIGFILEDIR, 0755);
   std::ofstream file(path);
   if (!file.good()) {
     throw std::runtime_error("error creating configuration file");

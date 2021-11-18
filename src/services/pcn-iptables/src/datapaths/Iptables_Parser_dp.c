@@ -49,6 +49,12 @@ BPF_TABLE_SHARED("percpu_array", int, u64, bytes_default_Input, 1);
 
 BPF_TABLE_SHARED("percpu_array", int, u64, pkts_default_Forward, 1);
 BPF_TABLE_SHARED("percpu_array", int, u64, bytes_default_Forward, 1);
+
+BPF_TABLE_SHARED("array", int, u64, default_action_Input, 1);
+BPF_TABLE_SHARED("array", int, u64, default_action_Forward, 1);
+
+BPF_TABLE_SHARED("array", int, u64, input_chain_empty, 1);
+BPF_TABLE_SHARED("array", int, u64, forward_chain_empty, 1);
 #endif
 
 #if _EGRESS_LOGIC
@@ -56,6 +62,10 @@ BPF_TABLE("extern", int, struct packetHeaders, packet, 1);
 
 BPF_TABLE_SHARED("percpu_array", int, u64, pkts_default_Output, 1);
 BPF_TABLE_SHARED("percpu_array", int, u64, bytes_default_Output, 1);
+
+BPF_TABLE_SHARED("array", int, u64, default_action_Output, 1);
+
+BPF_TABLE_SHARED("array", int, u64, output_chain_empty, 1);
 #endif
 
 struct elements {
@@ -92,7 +102,7 @@ struct tcp_hdr {
 } __attribute__((packed));
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "Code Parse receiving packet.");
+  pcn_log(ctx, LOG_DEBUG, "[Parser] Receiving packet.");
 
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
@@ -101,7 +111,7 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
     return RX_DROP;
   if (ethernet->proto != bpf_htons(ETH_P_IP)) {
     /*Let everything that is not IP pass. */
-    pcn_log(ctx, LOG_DEBUG, "Packet not IP. Let this traffic pass by default.");
+    pcn_log(ctx, LOG_DEBUG, "[Parser] Packet not IP. Let this traffic pass by default.");
     return RX_OK;
   }
 

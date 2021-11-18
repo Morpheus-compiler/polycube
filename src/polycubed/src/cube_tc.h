@@ -47,7 +47,7 @@ class CubeTC : public Cube {
   explicit CubeTC(const std::string &name, const std::string &service_name,
                   const std::vector<std::string> &ingres_code,
                   const std::vector<std::string> &egress_code, LogLevel level,
-                  bool shadow, bool span);
+                  bool shadow, bool span, bool dyn_opt_enabled, const std::vector<std::string> &cflags);
   virtual ~CubeTC();
 
  protected:

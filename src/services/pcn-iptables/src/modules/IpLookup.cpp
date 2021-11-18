@@ -35,7 +35,7 @@ Iptables::IpLookup::IpLookup(const int &index, const ChainNameEnum &chain,
   load();
 }
 
-Iptables::IpLookup::~IpLookup() {}
+Iptables::IpLookup::~IpLookup() = default;
 
 std::string Iptables::IpLookup::getCode() {
   std::string no_macro_code = code_;
@@ -68,6 +68,16 @@ std::string Iptables::IpLookup::getCode() {
 
   /*Replacing the default action*/
   replaceAll(no_macro_code, "_DEFAULTACTION", defaultActionString());
+
+  if ((chain_ == ChainNameEnum::INPUT) ||
+      (chain_ == ChainNameEnum::FORWARD)) {
+    replaceAll(
+            no_macro_code, "_CONNTRACKTABLEUPDATE",
+            std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_INGRESS));
+  } else {
+    replaceAll(no_macro_code, "_CONNTRACKTABLEUPDATE",
+               std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_EGRESS));
+  }
 
   if (program_type_ == ProgramType::INGRESS) {
     replaceAll(no_macro_code, "call_bpf_program", "call_ingress_program");
@@ -134,7 +144,7 @@ void Iptables::IpLookup::updateTableValue(IpAddr ip,
 
 void Iptables::IpLookup::updateMap(
     const std::map<struct IpAddr, std::vector<uint64_t>> &ips) {
-  for (auto ele : ips) {
+  for (const auto &ele : ips) {
     updateTableValue(ele.first, ele.second);
   }
 }

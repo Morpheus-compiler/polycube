@@ -9,6 +9,9 @@ module iptables {
   organization "Polycube open source project";
   description "YANG data model for the Polycube iptables service";
 
+  // Required to support loops in the eBPF code.
+  polycube-base:service-min-kernel-version "5.3.0";
+
   uses "polycube-standard-base:standard-base-yang-module";
 
   polycube-base:service-description "Iptables-compatible Service";
@@ -68,12 +71,12 @@ module iptables {
     }
 
     leaf sport {
-      type uint16;
+      type string;
       description "Source L4 Port";
     }
 
     leaf dport {
-      type uint16;
+      type string;
       description "Destination L4 Port";
     }
 
@@ -243,7 +246,7 @@ module iptables {
       }
     }
 
-    action delete {
+    action remove {
       input {
         uses "iptables:rule-fields";
       }

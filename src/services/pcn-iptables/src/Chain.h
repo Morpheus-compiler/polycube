@@ -15,23 +15,21 @@
  */
 #pragma once
 
-#include "../interface/ChainInterface.h"
+#include "../base/ChainBase.h"
 
-#include <spdlog/spdlog.h>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
 #include "ChainRule.h"
 #include "ChainStats.h"
-#include "Iptables.h"
 
 class Iptables;
 class ChainRule;
 
-using namespace io::swagger::server::model;
+using namespace polycube::service::model;
 
-class Chain : public ChainInterface {
+class Chain : public ChainBase {
   friend class ChainRule;
   friend class ChainStats;
 
@@ -39,9 +37,11 @@ class Chain : public ChainInterface {
   Chain(Iptables &parent, const ChainJsonObject &conf);
   virtual ~Chain();
 
-  std::shared_ptr<spdlog::logger> logger();
   void update(const ChainJsonObject &conf) override;
-  ChainJsonObject toJsonObject() override;
+  /// <summary>
+  /// Chain in which the rule will be inserted. Default: FORWARD.
+  /// </summary>
+  ChainNameEnum getName() override;
 
   /// <summary>
   /// Default action if no rule matches in the ingress chain. Default is DROP.
@@ -62,11 +62,6 @@ class Chain : public ChainInterface {
   void delStatsList() override;
 
   /// <summary>
-  /// Chain in which the rule will be inserted. Default: FORWARD.
-  /// </summary>
-  ChainNameEnum getName() override;
-
-  /// <summary>
   ///
   /// </summary>
   std::shared_ptr<ChainRule> getRule(const uint32_t &id) override;
@@ -80,14 +75,13 @@ class Chain : public ChainInterface {
 
   ChainAppendOutputJsonObject append(ChainAppendInputJsonObject input) override;
   ChainInsertOutputJsonObject insert(ChainInsertInputJsonObject input) override;
-  void deletes(ChainDeleteInputJsonObject input) override;
+  void remove(ChainRemoveInputJsonObject input) override;
   ChainResetCountersOutputJsonObject resetCounters() override;
   ChainApplyRulesOutputJsonObject applyRules() override;
 
   uint32_t getNrRules();
-
+  void updateChain();
  private:
-  Iptables &parent_;
   ActionEnum defaultAction;
   ChainNameEnum name;
   std::vector<std::shared_ptr<ChainRule>> rules_;
@@ -97,7 +91,6 @@ class Chain : public ChainInterface {
   // primary and secondary chains are used to redeploy a chain at runtime
   uint8_t chainNumber = 0;
 
-  void updateChain();
   static bool ipFromRulesToMap(
       const uint8_t &type, std::map<struct IpAddr, std::vector<uint64_t>> &ips,
       const std::vector<std::shared_ptr<ChainRule>> &rules);
@@ -108,7 +101,7 @@ class Chain : public ChainInterface {
 
   static bool portFromRulesToMap(
       const uint8_t &type, std::map<uint16_t, std::vector<uint64_t>> &ports,
-      const std::vector<std::shared_ptr<ChainRule>> &rules);
+      const std::vector<std::shared_ptr<ChainRule>> &rules, Chain *chain = nullptr);
 
   static bool interfaceFromRulesToMap(
       const uint8_t &type,
@@ -127,7 +120,7 @@ class Chain : public ChainInterface {
       std::map<struct HorusRule, struct HorusValue> &horus,
       const std::vector<std::shared_ptr<ChainRule>> &rules);
 
-  static bool fromRuleToHorusKeyValue(std::shared_ptr<ChainRule> rule,
+  static bool fromRuleToHorusKeyValue(const std::shared_ptr<ChainRule>& rule,
                                       struct HorusRule &key,
                                       struct HorusValue &value);
 };

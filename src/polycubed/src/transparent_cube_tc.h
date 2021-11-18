@@ -41,13 +41,15 @@ class TransparentCubeTC : virtual public TransparentCube {
                              const std::string &service_name,
                              const std::vector<std::string> &ingres_code,
                              const std::vector<std::string> &egress_code,
-                             LogLevel level, const service::attach_cb &attach);
+                             LogLevel level, bool dyn_opt_enabled, 
+                             const service::attach_cb &attach,
+                             const std::vector<std::string> &cflags);
   virtual ~TransparentCubeTC();
 
  protected:
   static void do_compile(int module_index, uint16_t next, bool is_netdev,
                          ProgramType type, LogLevel level_, ebpf::BPF &bpf,
-                         const std::string &code, int index);
+                         const std::string &code, int index, const std::vector<std::string> &custom_cflags);
   static std::string get_wrapper_code();
 
   void compile(ebpf::BPF &bpf, const std::string &code, int index,

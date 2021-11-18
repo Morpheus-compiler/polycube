@@ -57,7 +57,7 @@ Iptables::InterfaceLookup::InterfaceLookup(
   load();
 }
 
-Iptables::InterfaceLookup::~InterfaceLookup() {}
+Iptables::InterfaceLookup::~InterfaceLookup() = default;
 
 std::string Iptables::InterfaceLookup::getCode() {
   std::string no_macro_code = code_;
@@ -90,6 +90,16 @@ std::string Iptables::InterfaceLookup::getCode() {
 
   /*Replacing the default action*/
   replaceAll(no_macro_code, "_DEFAULTACTION", defaultActionString());
+
+  if ((chain_ == ChainNameEnum::INPUT) ||
+      (chain_ == ChainNameEnum::FORWARD)) {
+    replaceAll(
+            no_macro_code, "_CONNTRACKTABLEUPDATE",
+            std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_INGRESS));
+  } else {
+    replaceAll(no_macro_code, "_CONNTRACKTABLEUPDATE",
+               std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_EGRESS));
+  }
 
   if (wildcard_rule_) {
     replaceAll(no_macro_code, "_WILDCARD_RULE", std::to_string(1));
@@ -140,7 +150,7 @@ bool Iptables::InterfaceLookup::updateTableValue(
 
 void Iptables::InterfaceLookup::updateMap(
     const std::map<uint16_t, std::vector<uint64_t>> &ports) {
-  for (auto ele : ports) {
+  for (const auto &ele : ports) {
     // std::cout << "+ele.second (btv.size) " << ele.second.size() << std::endl;
     // std::cout << "+FROM_NRULES_TO_NELEMENTS(iptables.max_rules_) : " <<
     // FROM_NRULES_TO_NELEMENTS(iptables.max_rules_) << std::endl;

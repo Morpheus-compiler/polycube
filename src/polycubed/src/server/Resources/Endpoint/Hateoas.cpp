@@ -208,6 +208,7 @@ json Hateoas::HateoasSupport_root(const Pistache::Rest::Request &request,
     } catch (...) {
         spdlog::get("polycubed")->error(
                 "Hateoas - HateoasSupport_root error!");
+        return js_hateoas;
     }
 }
 

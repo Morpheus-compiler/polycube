@@ -1,0 +1,7 @@
+#ifndef KATRAN_CONFIG_H_IN
+#define KATRAN_CONFIG_H_IN
+
+#cmakedefine KATRAN_EBPF_INCLUDE_PATH "@KATRAN_EBPF_INCLUDE_PATH@"
+#define LINUX_INCLUDE "/usr/include/linux"
+
+#endif //KATRAN_CONFIG_H_IN

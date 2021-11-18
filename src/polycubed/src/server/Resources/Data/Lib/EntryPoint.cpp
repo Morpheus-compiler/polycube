@@ -22,6 +22,7 @@
 #include <queue>
 #include <string>
 #include <string_view>
+#include <algorithm>
 
 namespace polycube::polycubed::Rest::Resources::Data::Lib::EntryPoint {
 namespace {
@@ -62,7 +63,7 @@ std::string GenerateHandlerName(std::queue<std::string> names,
   std::string entry_point_name{operation_name};
   entry_point_name.append(GenerateName(std::move(names)));
   entry_point_name.append("_handler");
-  return entry_point_name;
+  return CamelCaseToUnderscore(std::move(entry_point_name));
 }
 
 std::string GenerateHelpName(std::queue<std::string> names) {
@@ -70,4 +71,22 @@ std::string GenerateHelpName(std::queue<std::string> names) {
   entry_point_name.append("_help");
   return entry_point_name;
 }
+
+std::string CamelCaseToUnderscore(std::string &&camelCase) {
+    std::string str(1, tolower(camelCase[0]));
+
+    // First place underscores between contiguous lower and upper case letters.
+    // For example, `_LowerCamelCase` becomes `_Lower_Camel_Case`.
+    for (auto it = camelCase.begin() + 1; it != camelCase.end(); ++it) {
+      if (isupper(*it) && *(it-1) != '_' && islower(*(it-1))) {
+        str += "_";
+      }
+      str += *it;
+    }
+
+    // Then convert it to lower case.
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+
+    return str;
+  }
 }  // namespace polycube::polycubed::Rest::Resources::Data::Lib::EntryPoint

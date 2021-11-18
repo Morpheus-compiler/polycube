@@ -19,8 +19,11 @@
 #include "../serializer/PortsJsonObject.h"
 
 
+
+
 #include "polycube/services/cube.h"
 #include "polycube/services/port.h"
+
 #include "polycube/services/utils.h"
 #include "polycube/services/fifo_map.hpp"
 
@@ -39,6 +42,12 @@ class PortsBase: public polycube::service::Port {
   virtual ~PortsBase();
   virtual void update(const PortsJsonObject &conf);
   virtual PortsJsonObject toJsonObject();
+
+  /// <summary>
+  /// IP address and prefix of the port
+  /// </summary>
+  virtual std::string getIp() = 0;
+  virtual void setIp(const std::string &value) = 0;
 
   std::shared_ptr<spdlog::logger> logger();
  protected:

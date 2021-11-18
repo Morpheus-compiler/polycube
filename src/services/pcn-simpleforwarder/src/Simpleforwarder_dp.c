@@ -26,6 +26,8 @@ struct action {
   uint16_t action;  // which action? see above enum
   uint16_t port;    // in case of redirect, to what port?
 };
+
+#define SINGLE_REDIRECT _SIMPLE_REDIRECT_
 /*
 * Key is the ingress port an action is a struct that describes how to handle
 * that packet.
@@ -33,6 +35,9 @@ struct action {
 BPF_HASH(actions, uint16_t, struct action);
 static __always_inline int handle_rx(struct CTXTYPE *ctx,
                                      struct pkt_metadata *md) {
+#if SINGLE_REDIRECT
+  return pcn_pkt_redirect(ctx, md, 1);
+#else
 #ifdef POLYCUBE_XDP
   pcn_log(ctx, LOG_TRACE, "XDP Cube", md->in_port);
 #endif
@@ -59,4 +64,5 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
     pcn_log(ctx, LOG_DEBUG, "Bad action %d.", x->action);
     return RX_DROP;
   }
+#endif
 }

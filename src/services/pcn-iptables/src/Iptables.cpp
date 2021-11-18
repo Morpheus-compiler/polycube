@@ -15,11 +15,14 @@
  */
 
 #include "Iptables.h"
+
+#include <memory>
 #include "./../../../polycubed/src/utils/utils.h"
 #include "Iptables_dp.h"
 
 Iptables::Iptables(const std::string name, const IptablesJsonObject &conf)
     : Cube(conf.getBase(), {iptables_code_ingress}, {iptables_code_egress}),
+    IptablesBase(name),
     netlink_instance_iptables_(polycube::polycubed::Netlink::getInstance()) {
   logger()->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [Iptables] [%n] [%l] %v");
   logger()->info("Creating Iptables instance");
@@ -38,6 +41,15 @@ Iptables::Iptables(const std::string name, const IptablesJsonObject &conf)
   addChain(ChainNameEnum::OUTPUT, chain);
 
   logger()->debug("INPUT, FORWARD, OUTPUT chains added");
+
+  switch(conf.getConntrack()) {
+    case IptablesConntrackEnum::ON:
+      conntrack_mode_ = ConntrackModes::ON;
+      break;
+    case IptablesConntrackEnum::OFF:
+      conntrack_mode_ = ConntrackModes::DISABLED;
+      break;
+  }
 
   /*Initialize program*/
   // Insert parser, first program of the chain
@@ -126,10 +138,20 @@ Iptables::Iptables(const std::string name, const IptablesJsonObject &conf)
               ModulesConstants::CONNTRACKTABLEUPDATE_EGRESS, *this,
               ProgramType::EGRESS)));
 
-  reloadAll();
-
   logger()->debug("Automatically Attaching to network interfaces");
   attachInterfaces();
+  reloadAll();
+
+  std::vector<std::shared_ptr<ChainRule>> empty;
+  auto chainInputParserProgram = std::dynamic_pointer_cast<Iptables::Parser>(programs_[std::make_pair(ModulesConstants::PARSER_INGRESS, ChainNameEnum::INVALID_INGRESS)]);
+  chainInputParserProgram->updateDefaultActionTable(ChainNameEnum::INPUT);
+  chainInputParserProgram->updateIsTableEmpty(ChainNameEnum::INPUT, empty);
+  chainInputParserProgram->updateDefaultActionTable(ChainNameEnum::FORWARD);
+  chainInputParserProgram->updateIsTableEmpty(ChainNameEnum::FORWARD, empty);
+
+  auto chainOutputParserProgram = std::dynamic_pointer_cast<Iptables::Parser>(programs_[std::make_pair(ModulesConstants::PARSER_EGRESS, ChainNameEnum::INVALID_EGRESS)]);
+  chainOutputParserProgram->updateDefaultActionTable(ChainNameEnum::OUTPUT);
+  chainOutputParserProgram->updateIsTableEmpty(ChainNameEnum::OUTPUT, empty);
 }
 
 Iptables::~Iptables() {
@@ -273,16 +295,19 @@ void Iptables::attachInterfaces() {
 
   std::unordered_map<std::string, std::string> connected_ports_new;
 
-  auto ifaces =
-      polycube::polycubed::Netlink::getInstance().get_available_ifaces();
-  for (auto &it : ifaces) {
-    auto name = it.second.get_name();
-    logger()->trace("+Interface {0} ", name);
-    if (ignored_interfaces.find(name) == ignored_interfaces.end()) {
-      // logger()->info("+ ATTACH Interface {0} ", name);
-      connected_ports_new.insert({name, name});
-    }
-  }
+  connected_ports_new.insert({"ens4f0", "ens4f0"});
+  connected_ports_new.insert({"ens4f1", "ens4f1"});
+
+//  auto ifaces =
+//      polycube::polycubed::Netlink::getInstance().get_available_ifaces();
+//  for (auto &it : ifaces) {
+//    auto name = it.second.get_name();
+//    logger()->trace("+Interface {0} ", name);
+//    if (ignored_interfaces.find(name) == ignored_interfaces.end()) {
+//      // logger()->info("+ ATTACH Interface {0} ", name);
+//      connected_ports_new.insert({name, name});
+//    }
+//  }
 
   for (auto &new_port : connected_ports_new) {
     if (connected_ports_.find(new_port.first) == connected_ports_.end()) {
@@ -346,6 +371,10 @@ IptablesConntrackEnum Iptables::getConntrack() {
     return IptablesConntrackEnum::OFF;
   }
   return IptablesConntrackEnum::ON;
+}
+
+bool Iptables::getDynOpt() {
+  return Cube::get_dyn_opt_enabled();
 }
 
 void Iptables::enableAcceptEstablished(Chain &chain) {
@@ -494,43 +523,6 @@ uint16_t Iptables::interfaceNameToIndex(const std::string &interface_string) {
   return index;
 }
 
-std::shared_ptr<Ports> Iptables::getPorts(const std::string &name) {
-  return get_port(name);
-}
-
-std::vector<std::shared_ptr<Ports>> Iptables::getPortsList() {
-  return get_ports();
-}
-
-void Iptables::addPorts(const std::string &name, const PortsJsonObject &conf) {
-  add_port<PortsJsonObject>(name, conf);
-}
-
-void Iptables::addPortsList(const std::vector<PortsJsonObject> &conf) {
-  for (auto &i : conf) {
-    std::string name_ = i.getName();
-    addPorts(name_, i);
-  }
-}
-
-void Iptables::replacePorts(const std::string &name,
-                            const PortsJsonObject &conf) {
-  delPorts(name);
-  std::string name_ = conf.getName();
-  addPorts(name_, conf);
-}
-
-void Iptables::delPorts(const std::string &name) {
-  remove_port(name);
-}
-
-void Iptables::delPortsList() {
-  auto ports = get_ports();
-  for (auto it : ports) {
-    delPorts(it->name());
-  }
-}
-
 std::shared_ptr<SessionTable> Iptables::getSessionTable(
     const std::string &src, const std::string &dst, const std::string &l4proto,
     const uint16_t &sport, const uint16_t &dport) {
@@ -572,8 +564,7 @@ std::vector<std::shared_ptr<SessionTable>> Iptables::getSessionTableList() {
     conf.setState(SessionTable::stateFromNumberToString(value.state));
     // conf.setEta(from_ttl_to_eta(value.ttl, value.state, key.l4proto));
 
-    session_table.push_back(
-        std::shared_ptr<SessionTable>(new SessionTable(*this, conf)));
+    session_table.push_back(std::make_shared<SessionTable>(*this, conf));
   }
   return session_table;
 }

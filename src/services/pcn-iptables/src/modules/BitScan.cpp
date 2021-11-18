@@ -27,7 +27,7 @@ Iptables::BitScan::BitScan(const int &index, const ChainNameEnum &chain,
   loadIndex64();
 }
 
-Iptables::BitScan::~BitScan() {}
+Iptables::BitScan::~BitScan() = default;
 
 void Iptables::BitScan::loadIndex64() {
   std::lock_guard<std::mutex> guard(program_mutex_);
@@ -70,6 +70,16 @@ std::string Iptables::BitScan::getCode() {
 
   /*Replacing the default action*/
   replaceAll(no_macro_code, "_DEFAULTACTION", defaultActionString());
+
+  if ((chain_ == ChainNameEnum::INPUT) ||
+      (chain_ == ChainNameEnum::FORWARD)) {
+    replaceAll(
+            no_macro_code, "_CONNTRACKTABLEUPDATE",
+            std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_INGRESS));
+  } else {
+    replaceAll(no_macro_code, "_CONNTRACKTABLEUPDATE",
+               std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_EGRESS));
+  }
 
   if (program_type_ == ProgramType::INGRESS) {
     replaceAll(no_macro_code, "call_bpf_program", "call_ingress_program");

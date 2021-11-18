@@ -19,19 +19,29 @@ namespace model {
 
 SimpleforwarderJsonObject::SimpleforwarderJsonObject() {
   m_nameIsSet = false;
+  m_dynOpt = false;
+  m_dynOptIsSet = true;
   m_portsIsSet = false;
+  m_simpleRedirect = true;
+  m_simpleRedirectIsSet = true;
   m_actionsIsSet = false;
 }
 
 SimpleforwarderJsonObject::SimpleforwarderJsonObject(const nlohmann::json &val) :
   JsonObjectBase(val) {
   m_nameIsSet = false;
+  m_dynOptIsSet = false;
   m_portsIsSet = false;
+  m_simpleRedirectIsSet = false;
   m_actionsIsSet = false;
 
 
   if (val.count("name")) {
     setName(val.at("name").get<std::string>());
+  }
+
+  if (val.count("dyn-opt")) {
+    setDynOpt(val.at("dyn-opt").get<bool>());
   }
 
   if (val.count("ports")) {
@@ -41,6 +51,10 @@ SimpleforwarderJsonObject::SimpleforwarderJsonObject(const nlohmann::json &val) 
     }
 
     m_portsIsSet = true;
+  }
+
+  if (val.count("simpleRedirect")) {
+    setSimpleRedirect(val.at("simpleRedirect").get<bool>());
   }
 
   if (val.count("actions")) {
@@ -63,6 +77,10 @@ nlohmann::json SimpleforwarderJsonObject::toJson() const {
     val["name"] = m_name;
   }
 
+  if (m_dynOptIsSet) {
+    val["dyn-opt"] = m_dynOpt;
+  }
+
   {
     nlohmann::json jsonArray;
     for (auto& item : m_ports) {
@@ -72,6 +90,10 @@ nlohmann::json SimpleforwarderJsonObject::toJson() const {
     if (jsonArray.size() > 0) {
       val["ports"] = jsonArray;
     }
+  }
+
+  if (m_simpleRedirectIsSet) {
+    val["simpleRedirect"] = m_simpleRedirect;
   }
 
   {
@@ -103,6 +125,23 @@ bool SimpleforwarderJsonObject::nameIsSet() const {
 
 
 
+bool SimpleforwarderJsonObject::getDynOpt() const {
+  return m_dynOpt;
+}
+
+void SimpleforwarderJsonObject::setDynOpt(bool value) {
+  m_dynOpt = value;
+  m_dynOptIsSet = true;
+}
+
+bool SimpleforwarderJsonObject::dynOptIsSet() const {
+  return m_dynOptIsSet;
+}
+
+void SimpleforwarderJsonObject::unsetDynOpt() {
+  m_dynOptIsSet = false;
+}
+
 const std::vector<PortsJsonObject>& SimpleforwarderJsonObject::getPorts() const{
   return m_ports;
 }
@@ -119,6 +158,23 @@ bool SimpleforwarderJsonObject::portsIsSet() const {
 
 void SimpleforwarderJsonObject::unsetPorts() {
   m_portsIsSet = false;
+}
+
+bool SimpleforwarderJsonObject::getSimpleRedirect() const {
+  return m_simpleRedirect;
+}
+
+void SimpleforwarderJsonObject::setSimpleRedirect(bool value) {
+  m_simpleRedirect = value;
+  m_simpleRedirectIsSet = true;
+}
+
+bool SimpleforwarderJsonObject::simpleRedirectIsSet() const {
+  return m_simpleRedirectIsSet;
+}
+
+void SimpleforwarderJsonObject::unsetSimpleRedirect() {
+  m_simpleRedirectIsSet = false;
 }
 
 const std::vector<ActionsJsonObject>& SimpleforwarderJsonObject::getActions() const{

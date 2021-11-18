@@ -1,0 +1,7 @@
+#ifndef BMC_CONFIG_H_IN
+#define BMC_CONFIG_H_IN
+
+#cmakedefine BMC_EBPF_INCLUDE_PATH "@BMC_EBPF_INCLUDE_PATH@"
+#define LINUX_INCLUDE "/usr/include/linux"
+
+#endif //BMC_CONFIG_H_IN

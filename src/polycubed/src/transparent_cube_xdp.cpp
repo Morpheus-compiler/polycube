@@ -31,9 +31,9 @@ TransparentCubeXDP::TransparentCubeXDP(
     const std::string &name, const std::string &service_name,
     const std::vector<std::string> &ingress_code,
     const std::vector<std::string> &egress_code, LogLevel level, CubeType type,
-    const service::attach_cb &attach)
+    bool dyn_opt_enabled, const service::attach_cb &attach, const std::vector<std::string> &cflags)
     : TransparentCube(name, service_name, PatchPanel::get_xdp_instance(), level,
-                      type, attach),
+                      type, dyn_opt_enabled, attach, cflags),
       egress_next_tc_(0),
       egress_next_tc_is_netdev_(false) {
   egress_programs_table_tc_ = std::move(egress_programs_table_);
@@ -96,13 +96,13 @@ void TransparentCubeXDP::reload(const std::string &code, int index,
         std::unique_lock<std::mutex> bcc_guard(bcc_mutex);
         std::unique_ptr<ebpf::BPF> new_bpf_program = std::unique_ptr<ebpf::BPF>(
             new ebpf::BPF(0, nullptr, false, name_, false,
-                          egress_programs_tc_.at(index).get()));
+                          egress_programs_.at(index).get()));
 
         bcc_guard.unlock();
         TransparentCubeTC::do_compile(get_id(), egress_next_tc_,
                                       egress_next_tc_is_netdev_,
                                       ProgramType::EGRESS, level_,
-                                      *new_bpf_program, code, 0);
+                                      *new_bpf_program, code, 0, cflags_);
         int fd = CubeTC::do_load(*new_bpf_program);
 
         egress_programs_table_tc_->update_value(index, fd);
@@ -149,7 +149,7 @@ void TransparentCubeXDP::reload_all() {
         TransparentCubeTC::do_compile(get_id(), egress_next_tc_,
                                       egress_next_tc_is_netdev_,
                                       ProgramType::EGRESS, level_,
-                                      *new_bpf_program, egress_code_[i], 0);
+                                      *new_bpf_program, egress_code_[i], 0, cflags_);
         int fd = CubeTC::do_load(*new_bpf_program);
 
         egress_programs_table_tc_->update_value(i, fd);
@@ -193,7 +193,7 @@ int TransparentCubeXDP::add_program(const std::string &code, int index, ProgramT
         TransparentCubeTC::do_compile(get_id(), egress_next_tc_,
                                       egress_next_tc_is_netdev_,
                                       ProgramType::EGRESS, level_,
-                                      *egress_programs_tc_.at(index), code, 0);
+                                      *egress_programs_tc_.at(index), code, 0, cflags_);
         int fd = CubeTC::do_load(*egress_programs_tc_.at(index));
         bcc_guard.lock();
 

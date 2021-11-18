@@ -23,8 +23,6 @@
 
 #include "JsonObjectBase.h"
 
-#include "polycube/services/cube.h"
-
 namespace io {
 namespace swagger {
 namespace server {

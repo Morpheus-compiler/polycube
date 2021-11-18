@@ -59,6 +59,8 @@ class RawTable {
   int get_and_delete_batch(void *keys, void *values, unsigned int *count, void *in_batch = nullptr, void *out_batch = nullptr);
   int update_batch(void *keys, void *values, unsigned int *count);
 
+  int get_fd() const;
+
   int first(void *key);
   int next(const void *key, void *next);
 
@@ -252,6 +254,25 @@ class PercpuHashTable : protected RawTable {
   unsigned int ncpus_;
 };
 
+class MapInMapTable {
+  // friend class Cube;
+
+ public:
+  MapInMapTable() = default;
+  ~MapInMapTable();
+
+  bool update(const int &index, const int &inner_map_fd);
+  bool remove(const int &index);
+
+  int get_fd();
+
+  explicit MapInMapTable(void *op);
+
+  private:
+  class impl;
+  std::shared_ptr<impl> pimpl_;
+};
+
 /** QUEUE/STACK MAPS*/
 
 class RawQueueStackTable {
@@ -269,7 +290,6 @@ class RawQueueStackTable {
   class impl;
   std::shared_ptr<impl> pimpl_;
 };
-
 
 template <class ValueType>
 class QueueStackTable : protected RawQueueStackTable {

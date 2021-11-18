@@ -52,6 +52,10 @@ class BaseModel {
                       const nlohmann::json &json);
   Response get_port_tcubes(const std::string &cube_name,
                            const std::string &port_name) const;
+  Response get_dyn_opt(const std::string &cube_name) const;
+  Response get_morpheus_started(const std::string &cube_name) const;
+  Response set_start_morpheus(const std::string &cube_name,
+                      const nlohmann::json &json);
 };
 
 }  // namespace polycube::polycubed

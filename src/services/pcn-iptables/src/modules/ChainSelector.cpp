@@ -64,9 +64,12 @@ std::string Iptables::ChainSelector::defaultActionString(
           "updateForwardingDecision(PASS_LABELING);";
       return ret;
     }
+
+    throw std::runtime_error("Chain does not have default action");
   } catch (...) {
     return "return RX_DROP;";
   }
+  return "";
 }
 
 void Iptables::ChainSelector::updateLocalIps() {

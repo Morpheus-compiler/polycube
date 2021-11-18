@@ -37,8 +37,9 @@ class TransparentCubeXDP : virtual public TransparentCube {
                               const std::string &service_name,
                               const std::vector<std::string> &ingres_code,
                               const std::vector<std::string> &egress_code,
-                              LogLevel level, CubeType type,
-                              const service::attach_cb &attach);
+                              LogLevel level, CubeType type, bool dyn_opt_enabled,
+                              const service::attach_cb &attach,
+                              const std::vector<std::string> &cflags);
   virtual ~TransparentCubeXDP();
 
   void set_next(uint16_t next, ProgramType type,

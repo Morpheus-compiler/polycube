@@ -114,8 +114,21 @@ module polycube-base {
         enum OFF;
       }
       default INFO;
-      description "Defines the logging level of a service instance, from none (OFF) to the most verbose (TRACE)";
+      description "Logging level of a cube, from none (OFF) to the most verbose (TRACE)";
       polycube-base:cli-example "INFO";
+    }
+
+    leaf dyn-opt {
+      type boolean;
+      default "false";
+      description "Defines if the service should be automatically optimized by Morpheus";
+      polycube-base:init-only-config;
+    }
+
+    leaf start-morpheus {
+      type boolean;
+      default "false";
+      description "Set this flag if you want to start Morpheus compiler";
     }
   }
 }

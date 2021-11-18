@@ -52,7 +52,8 @@ struct elements {
   uint64_t bits[_MAXRULES];
 };
 
-BPF_ARRAY(tcpFlags_DIRECTION, struct elements, 256);
+BPF_TABLE_RO("array", int, struct elements, tcpFlags_DIRECTION, 256, 1);
+//BPF_ARRAY(tcpFlags_DIRECTION, struct elements, 256);
 static __always_inline struct elements *getBitVect(int *key) {
   return tcpFlags_DIRECTION.lookup(key);
 }
@@ -66,6 +67,21 @@ static __always_inline struct elements *getShared() {
 
 BPF_TABLE("extern", int, u64, pkts_default__DIRECTION, 1);
 BPF_TABLE("extern", int, u64, bytes_default__DIRECTION, 1);
+BPF_TABLE("extern", int, u64, default_action__DIRECTION, 1);
+
+static __always_inline int applyDefaultAction(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action__DIRECTION.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
 static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
   u64 *value;
   int zero = 0;
@@ -83,7 +99,6 @@ static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 /*The struct elements and the lookup table are defined only if _NR_ELEMENTS>0,
  * so this code has to be used only in this case.*/
-#if _NR_ELEMENTS > 0
   int key = 0;
   struct packetHeaders *pkt = getPacket();
   if (pkt == NULL) {
@@ -91,11 +106,11 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
     return RX_DROP;
   }
   if (pkt->l4proto != IPPROTO_TCP) {
-    pcn_log(ctx, LOG_DEBUG, "Code flags _DIRECTION ignoring packet. ");
+    pcn_log(ctx, LOG_DEBUG, "[TCPFlagsLookup] Code flags _DIRECTION ignoring packet. ");
     call_bpf_program(ctx, _NEXT_HOP_1);
     return RX_DROP;
   }
-  pcn_log(ctx, LOG_DEBUG, "Code flags _DIRECTION receiving packet. ");
+  pcn_log(ctx, LOG_DEBUG, "[TCPFlagsLookup] Code flags _DIRECTION receiving packet. ");
 
   int flags = 0;
   flags = pkt->flags;
@@ -104,50 +119,32 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 
   if (ele == NULL) {
     incrementDefaultCounters_DIRECTION(md->packet_len);
-    _DEFAULTACTION
+    return applyDefaultAction(ctx);
   } else {
     struct elements *result = getShared();
     if (result == NULL) {
       /*Can't happen. The PERCPU is preallocated.*/
       return RX_DROP;
     } else {
-      /*#pragma unroll does not accept a loop with a single iteration, so we
-       * need to
-       * distinguish cases to avoid a verifier error.*/
       bool isAllZero = true;
-#if _NR_ELEMENTS == 1
-      (result->bits)[0] = (result->bits)[0] & (ele->bits)[0];
-      if (result->bits[0])
-        isAllZero = false;
-      pcn_log(
-          ctx, LOG_DEBUG,
-          "Code TcpFlags_DIRECTION  Match found. Bitvec: %llu, result %llu. ",
-          (ele->bits)[0], (result->bits)[0]);
-#else
-      int i = 0;
-#pragma unroll
-      for (i = 0; i < _NR_ELEMENTS; ++i) {
+
+      for (int i = 0; i < _NR_ELEMENTS; ++i) {
         (result->bits)[i] = (result->bits)[i] & (ele->bits)[i];
 
         if (result->bits[i])
           isAllZero = false;
       }
 
-#endif
       if (isAllZero) {
         pcn_log(ctx, LOG_DEBUG,
-                "Bitvector is all zero. Break pipeline for TcpFlags_DIRECTION");
+                "[TCPFlagsLookup] Bitvector is all zero. Break pipeline for TcpFlags_DIRECTION");
         incrementDefaultCounters_DIRECTION(md->packet_len);
-        _DEFAULTACTION
+        return applyDefaultAction(ctx);
       }
     }  // if result == NULL
   }    // if ele==NULL
 
   call_bpf_program(ctx, _NEXT_HOP_1);
-
-#else
-  return RX_DROP;
-#endif
 
   return RX_DROP;
 }

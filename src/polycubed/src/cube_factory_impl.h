@@ -45,13 +45,13 @@ class CubeFactoryImpl : public CubeFactory {
   std::shared_ptr<CubeIface> create_cube(
       const nlohmann::json &conf, const std::vector<std::string> &ingress_code,
       const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-      const set_log_level_cb &log_level_cb, const packet_in_cb &cb) override;
+      const set_log_level_cb &log_level_cb, const std::vector<std::string> &cflags, const packet_in_cb &cb) override;
 
   std::shared_ptr<TransparentCubeIface> create_transparent_cube(
       const nlohmann::json &conf, const std::vector<std::string> &ingress_code,
       const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-      const set_log_level_cb &log_level_cb, const packet_in_cb &cb,
-      const attach_cb &attach) override;
+      const set_log_level_cb &log_level_cb, const std::vector<std::string> &cflags,
+      const packet_in_cb &cb, const attach_cb &attach) override;
 
   void destroy_cube(const std::string &name) override;
 
@@ -62,13 +62,14 @@ class CubeFactoryImpl : public CubeFactory {
   std::shared_ptr<CubeIface> create_cube(
       const std::string &name, const std::vector<std::string> &ingress_code,
       const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-      const CubeType type, const packet_in_cb &cb, LogLevel level, bool shadow, bool span);
+      const CubeType type, const packet_in_cb &cb, LogLevel level, 
+      bool shadow, bool span, bool dyn_opt_enabled, const std::vector<std::string> &cflags);
 
   std::shared_ptr<TransparentCubeIface> create_transparent_cube(
       const std::string &name, const std::vector<std::string> &ingress_code,
       const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-      const CubeType type, const packet_in_cb &cb, const attach_cb &attach,
-      LogLevel level);
+      const CubeType type, const packet_in_cb &cb, const attach_cb &attach, 
+      LogLevel level, bool dyn_opt_enabled, const std::vector<std::string> &cflags);
 
   std::string service_name_;
   std::unordered_map<std::string, std::shared_ptr<BaseCubeIface>> cubes_;

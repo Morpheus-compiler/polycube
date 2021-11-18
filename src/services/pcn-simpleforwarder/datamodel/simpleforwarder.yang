@@ -6,6 +6,8 @@ module simpleforwarder {
   import polycube-base { prefix "polycube-base"; }
   import polycube-standard-base { prefix "polycube-standard-base"; }
 
+  import ietf-inet-types { prefix "inet"; }
+
   organization "Polycube open source project";
   description "YANG data model for the Polycube Simple Forwarder service";
 
@@ -14,7 +16,26 @@ module simpleforwarder {
   polycube-base:service-name "simpleforwarder";
   polycube-base:service-min-kernel-version "4.14.0";
 
-  uses "polycube-standard-base:standard-base-yang-module";
+  uses "polycube-standard-base:standard-base-yang-module" {
+     augment ports {
+      leaf ip {
+        type inet:ipv4-prefix;
+        description "IP address and prefix of the port";
+        polycube-base:cli-example "10.0.0.1/24";
+        polycube-base:name-metric "simpleforwarder_ip_ports";
+        polycube-base:type-metric "GAUGE";
+        polycube-base:path-metric "$.ports[?(@.ip != '')]";
+        polycube-base:help-metric "Number of ports of the simpleforwarder with ip";
+        polycube-base:type-operation "FILTER";
+      }
+    }
+  }
+
+  leaf simpleRedirect {
+    type boolean;
+    description "Flag to indicate if a simple redirect in the other port should be performed";
+    default true;
+  }
 
   list actions {
     key "inport";

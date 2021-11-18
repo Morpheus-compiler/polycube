@@ -48,12 +48,28 @@ public:
   bool nameIsSet() const;
 
   /// <summary>
+  /// Defines if the service should be automatically optimized by Morpheus
+  /// </summary>
+  bool getDynOpt() const;
+  void setDynOpt(bool value);
+  bool dynOptIsSet() const;
+  void unsetDynOpt();
+
+  /// <summary>
   /// Entry of the ports table
   /// </summary>
   const std::vector<PortsJsonObject>& getPorts() const;
   void addPorts(PortsJsonObject value);
   bool portsIsSet() const;
   void unsetPorts();
+
+  /// <summary>
+  /// Flag to indicate if a simple redirect in the other port should be performed
+  /// </summary>
+  bool getSimpleRedirect() const;
+  void setSimpleRedirect(bool value);
+  bool simpleRedirectIsSet() const;
+  void unsetSimpleRedirect();
 
   /// <summary>
   /// Entry of the Actions table
@@ -66,8 +82,12 @@ public:
 private:
   std::string m_name;
   bool m_nameIsSet;
+  bool m_dynOpt;
+  bool m_dynOptIsSet;
   std::vector<PortsJsonObject> m_ports;
   bool m_portsIsSet;
+  bool m_simpleRedirect;
+  bool m_simpleRedirectIsSet;
   std::vector<ActionsJsonObject> m_actions;
   bool m_actionsIsSet;
 };

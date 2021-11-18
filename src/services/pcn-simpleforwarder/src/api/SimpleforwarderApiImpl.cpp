@@ -101,7 +101,7 @@ void
 create_simpleforwarder_actions_by_id(const std::string &name, const std::string &inport, const ActionsJsonObject &value) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->addActions(inport, value);
+  return simpleforwarder->addActions(inport, value);
 }
 
 /**
@@ -137,7 +137,7 @@ void
 create_simpleforwarder_ports_by_id(const std::string &name, const std::string &portsName, const PortsJsonObject &value) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->addPorts(portsName, value);
+  return simpleforwarder->addPorts(portsName, value);
 }
 
 /**
@@ -172,7 +172,7 @@ void
 delete_simpleforwarder_actions_by_id(const std::string &name, const std::string &inport) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->delActions(inport);
+  return simpleforwarder->delActions(inport);
 }
 
 /**
@@ -206,7 +206,7 @@ void
 delete_simpleforwarder_ports_by_id(const std::string &name, const std::string &portsName) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->delPorts(portsName);
+  return simpleforwarder->delPorts(portsName);
 }
 
 /**
@@ -318,6 +318,23 @@ read_simpleforwarder_by_id(const std::string &name) {
 }
 
 /**
+* @brief   Read dyn-opt by ID
+*
+* Read operation of resource: dyn-opt*
+*
+* @param[in] name ID of name
+*
+* Responses:
+* bool
+*/
+bool
+read_simpleforwarder_dyn_opt_by_id(const std::string &name) {
+  auto simpleforwarder = get_cube(name);
+  return simpleforwarder->getDynOpt();
+
+}
+
+/**
 * @brief   Read ports by ID
 *
 * Read operation of resource: ports*
@@ -332,6 +349,25 @@ PortsJsonObject
 read_simpleforwarder_ports_by_id(const std::string &name, const std::string &portsName) {
   auto simpleforwarder = get_cube(name);
   return simpleforwarder->getPorts(portsName)->toJsonObject();
+
+}
+
+/**
+* @brief   Read ip by ID
+*
+* Read operation of resource: ip*
+*
+* @param[in] name ID of name
+* @param[in] portsName ID of ports_name
+*
+* Responses:
+* std::string
+*/
+std::string
+read_simpleforwarder_ports_ip_by_id(const std::string &name, const std::string &portsName) {
+  auto simpleforwarder = get_cube(name);
+  auto ports = simpleforwarder->getPorts(portsName);
+  return ports->getIp();
 
 }
 
@@ -356,6 +392,23 @@ read_simpleforwarder_ports_list_by_id(const std::string &name) {
 }
 
 /**
+* @brief   Read simpleRedirect by ID
+*
+* Read operation of resource: simpleRedirect*
+*
+* @param[in] name ID of name
+*
+* Responses:
+* bool
+*/
+bool
+read_simpleforwarder_simple_redirect_by_id(const std::string &name) {
+  auto simpleforwarder = get_cube(name);
+  return simpleforwarder->getSimpleRedirect();
+
+}
+
+/**
 * @brief   Replace actions by ID
 *
 * Replace operation of resource: actions*
@@ -371,7 +424,7 @@ void
 replace_simpleforwarder_actions_by_id(const std::string &name, const std::string &inport, const ActionsJsonObject &value) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->replaceActions(inport, value);
+  return simpleforwarder->replaceActions(inport, value);
 }
 
 /**
@@ -406,7 +459,7 @@ void
 replace_simpleforwarder_ports_by_id(const std::string &name, const std::string &portsName, const PortsJsonObject &value) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->replacePorts(portsName, value);
+  return simpleforwarder->replacePorts(portsName, value);
 }
 
 /**
@@ -442,7 +495,7 @@ update_simpleforwarder_actions_action_by_id(const std::string &name, const std::
   auto simpleforwarder = get_cube(name);
   auto actions = simpleforwarder->getActions(inport);
 
-  actions->setAction(value);
+  return actions->setAction(value);
 }
 
 /**
@@ -462,7 +515,7 @@ update_simpleforwarder_actions_by_id(const std::string &name, const std::string 
   auto simpleforwarder = get_cube(name);
   auto actions = simpleforwarder->getActions(inport);
 
-  actions->update(value);
+  return actions->update(value);
 }
 
 /**
@@ -498,7 +551,7 @@ update_simpleforwarder_actions_outport_by_id(const std::string &name, const std:
   auto simpleforwarder = get_cube(name);
   auto actions = simpleforwarder->getActions(inport);
 
-  actions->setOutport(value);
+  return actions->setOutport(value);
 }
 
 /**
@@ -516,7 +569,7 @@ void
 update_simpleforwarder_by_id(const std::string &name, const SimpleforwarderJsonObject &value) {
   auto simpleforwarder = get_cube(name);
 
-  simpleforwarder->update(value);
+  return simpleforwarder->update(value);
 }
 
 /**
@@ -551,7 +604,27 @@ update_simpleforwarder_ports_by_id(const std::string &name, const std::string &p
   auto simpleforwarder = get_cube(name);
   auto ports = simpleforwarder->getPorts(portsName);
 
-  ports->update(value);
+  return ports->update(value);
+}
+
+/**
+* @brief   Update ip by ID
+*
+* Update operation of resource: ip*
+*
+* @param[in] name ID of name
+* @param[in] portsName ID of ports_name
+* @param[in] value IP address and prefix of the port
+*
+* Responses:
+*
+*/
+void
+update_simpleforwarder_ports_ip_by_id(const std::string &name, const std::string &portsName, const std::string &value) {
+  auto simpleforwarder = get_cube(name);
+  auto ports = simpleforwarder->getPorts(portsName);
+
+  return ports->setIp(value);
 }
 
 /**
@@ -568,6 +641,24 @@ update_simpleforwarder_ports_by_id(const std::string &name, const std::string &p
 void
 update_simpleforwarder_ports_list_by_id(const std::string &name, const std::vector<PortsJsonObject> &value) {
   throw std::runtime_error("Method not supported");
+}
+
+/**
+* @brief   Update simpleRedirect by ID
+*
+* Update operation of resource: simpleRedirect*
+*
+* @param[in] name ID of name
+* @param[in] value Flag to indicate if a simple redirect in the other port should be performed
+*
+* Responses:
+*
+*/
+void
+update_simpleforwarder_simple_redirect_by_id(const std::string &name, const bool &value) {
+  auto simpleforwarder = get_cube(name);
+
+  return simpleforwarder->setSimpleRedirect(value);
 }
 
 

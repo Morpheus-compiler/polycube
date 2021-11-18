@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "../interface/ChainRuleInterface.h"
+#include "../base/ChainRuleBase.h"
 #include "defines.h"
 
 #include <inttypes.h>
@@ -23,9 +23,9 @@
 
 class Chain;
 
-using namespace io::swagger::server::model;
+using namespace polycube::service::model;
 
-class ChainRule : public ChainRuleInterface {
+class ChainRule : public ChainRuleBase {
   friend class ChainStats;
   friend class Chain;
 
@@ -33,11 +33,10 @@ class ChainRule : public ChainRuleInterface {
   ChainRule(Chain &parent, const ChainRuleJsonObject &conf);
   virtual ~ChainRule();
 
-  std::shared_ptr<spdlog::logger> logger();
+  bool equal(ChainRule &cmp);
+
   void update(const ChainRuleJsonObject &conf) override;
   ChainRuleJsonObject toJsonObject() override;
-
-  bool equal(ChainRule &cmp);
 
   /// <summary>
   /// Source IP Address.
@@ -60,8 +59,8 @@ class ChainRule : public ChainRuleInterface {
   /// <summary>
   /// Destination L4 Port
   /// </summary>
-  uint16_t getDport() override;
-  void setDport(const uint16_t &value) override;
+  std::string getDport() override;
+  void setDport(const std::string &value) override;
 
   /// <summary>
   /// TCP flags. Allowed values: SYN, FIN, ACK, RST, PSH, URG, CWR, ECE. ! means
@@ -97,8 +96,8 @@ class ChainRule : public ChainRuleInterface {
   /// <summary>
   /// Source L4 Port
   /// </summary>
-  uint16_t getSport() override;
-  void setSport(const uint16_t &value) override;
+  std::string getSport() override;
+  void setSport(const std::string &value) override;
 
   /// <summary>
   /// Rule Identifier
@@ -118,9 +117,16 @@ class ChainRule : public ChainRuleInterface {
   static bool acceptEstablishedOptimizationFound(Chain &chain);
   static void applyAcceptEstablishedOptimization(Chain &chain);
 
- private:
-  Chain &parent_;
+  bool isSportRange();
+  bool isDportRange();
 
+  uint16_t getSportStart();
+  uint16_t getSportEnd();
+
+  uint16_t getDportStart();
+  uint16_t getDportEnd();
+
+ private:
   uint32_t id;
 
   ConntrackstatusEnum conntrack;
@@ -133,10 +139,14 @@ class ChainRule : public ChainRuleInterface {
   bool ipDstIsSet = false;
 
   uint16_t srcPort;
+  uint16_t srcPortEnd;
   bool srcPortIsSet = false;
+  bool srcPortEndIsSet = false;
 
   uint16_t dstPort;
+  uint16_t dstPortEnd;
   bool dstPortIsSet = false;
+  bool dstPortEndIsSet = false;
 
   std::string inIface;
   bool inIfaceIsSet = false;
@@ -152,4 +162,7 @@ class ChainRule : public ChainRuleInterface {
 
   ActionEnum action;
   bool actionIsSet = false;
+
+  template <class Container>
+  static void splitString(const std::string& str, Container& cont, char delim = ' ');
 };

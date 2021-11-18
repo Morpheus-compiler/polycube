@@ -27,7 +27,7 @@ Iptables::TcpFlagsLookup::TcpFlagsLookup(const int &index,
   load();
 }
 
-Iptables::TcpFlagsLookup::~TcpFlagsLookup() {}
+Iptables::TcpFlagsLookup::~TcpFlagsLookup() = default;
 
 std::string Iptables::TcpFlagsLookup::getCode() {
   std::string no_macro_code = code_;
@@ -54,6 +54,16 @@ std::string Iptables::TcpFlagsLookup::getCode() {
 
   /*Replacing the default action*/
   replaceAll(no_macro_code, "_DEFAULTACTION", defaultActionString());
+
+  if ((chain_ == ChainNameEnum::INPUT) ||
+      (chain_ == ChainNameEnum::FORWARD)) {
+    replaceAll(
+            no_macro_code, "_CONNTRACKTABLEUPDATE",
+            std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_INGRESS));
+  } else {
+    replaceAll(no_macro_code, "_CONNTRACKTABLEUPDATE",
+               std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_EGRESS));
+  }
 
   if (program_type_ == ProgramType::INGRESS) {
     replaceAll(no_macro_code, "call_bpf_program", "call_ingress_program");

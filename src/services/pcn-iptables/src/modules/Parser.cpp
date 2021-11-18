@@ -26,7 +26,7 @@ Iptables::Parser::Parser(const int &index, Iptables &outer, const ProgramType t)
   reload();
 }
 
-Iptables::Parser::~Parser() {}
+Iptables::Parser::~Parser() = default;
 
 std::string Iptables::Parser::defaultActionString(ChainNameEnum chain) {
   try {
@@ -36,9 +36,62 @@ std::string Iptables::Parser::defaultActionString(ChainNameEnum chain) {
     } else if (target_chain->getDefault() == ActionEnum::ACCEPT) {
       return "return RX_OK;";
     }
+    
+    throw std::runtime_error("Chain does not have default action");
   } catch (...) {
     return "return RX_DROP;";
   }
+  return "";
+}
+
+void Iptables::Parser::updateDefaultActionTable(const ChainNameEnum &chainName) {
+  std::string table_name;
+  auto chain = iptables_.getChain(chainName);
+  switch (chainName) {
+    case ChainNameEnum::INPUT:
+      table_name = "default_action_Input";
+      break;
+    case ChainNameEnum::FORWARD:
+      table_name = "default_action_Forward";
+      break;
+    case ChainNameEnum::OUTPUT:
+      table_name = "default_action_Output";
+      break;
+    default:
+      table_name = "undefined";
+      break;
+  }
+
+  auto table = iptables_.get_array_table<uint64_t>(table_name, index_, program_type_);
+  uint64_t value = 0;
+
+  if (chain->getDefault() == ActionEnum::ACCEPT) {
+    value = 1;
+  }
+
+  table.set(0, value);
+}
+
+void Iptables::Parser::updateIsTableEmpty(const ChainNameEnum &chainName, const std::vector<std::shared_ptr<ChainRule>> &ruleList) {
+  std::string table_name;
+  auto chain = iptables_.getChain(chainName);
+  switch (chainName) {
+    case ChainNameEnum::INPUT:
+      table_name = "input_chain_empty";
+      break;
+    case ChainNameEnum::FORWARD:
+      table_name = "forward_chain_empty";
+      break;
+    case ChainNameEnum::OUTPUT:
+      table_name = "output_chain_empty";
+      break;
+    default:
+      table_name = "undefined";
+      break;
+  }
+
+  auto table = iptables_.get_array_table<uint64_t>(table_name, index_, program_type_);
+  table.set(0, (uint64_t)ruleList.empty());
 }
 
 std::string Iptables::Parser::getCode() {

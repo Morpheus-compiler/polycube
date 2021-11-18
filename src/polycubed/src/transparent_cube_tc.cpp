@@ -28,10 +28,10 @@ namespace polycubed {
 TransparentCubeTC::TransparentCubeTC(
     const std::string &name, const std::string &service_name,
     const std::vector<std::string> &ingress_code,
-    const std::vector<std::string> &egress_code, LogLevel level,
-    const service::attach_cb &attach)
+    const std::vector<std::string> &egress_code, LogLevel level, bool dyn_opt_enabled,
+    const service::attach_cb &attach, const std::vector<std::string> &cflags)
     : TransparentCube(name, service_name, PatchPanel::get_tc_instance(),
-                      level, CubeType::TC, attach) {
+                      level, CubeType::TC, dyn_opt_enabled, attach, cflags) {
   TransparentCube::init(ingress_code, egress_code);
 }
 
@@ -48,11 +48,11 @@ std::string TransparentCubeTC::get_wrapper_code() {
 void TransparentCubeTC::do_compile(int id, uint16_t next,
                                    bool is_netdev, ProgramType type,
                                    LogLevel level_, ebpf::BPF &bpf,
-                                   const std::string &code, int index) {
+                                   const std::string &code, int index, const std::vector<std::string> &custom_cflags) {
   std::string all_code(get_wrapper_code() +
                        DatapathLog::get_instance().parse_log(code));
 
-  std::vector<std::string> cflags(cflags_);
+  std::vector<std::string> cflags(custom_cflags);
   cflags.push_back("-DCUBE_ID=" + std::to_string(id));
   cflags.push_back("-DLOG_LEVEL=LOG_" + logLevelString(level_));
   cflags.push_back(std::string("-DCTXTYPE=") + std::string("__sk_buff"));
@@ -84,7 +84,8 @@ void TransparentCubeTC::compile(ebpf::BPF &bpf, const std::string &code,
     is_netdev = egress_next_is_netdev_;
     break;
   }
-  do_compile(get_id(), next, is_netdev, type, level_, bpf, code, index);
+  
+  do_compile(get_id(), next, is_netdev, type, level_, bpf, code, index, {});
 }
 
 int TransparentCubeTC::load(ebpf::BPF &bpf, ProgramType type) {

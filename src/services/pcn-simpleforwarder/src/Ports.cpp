@@ -20,8 +20,21 @@
 #include "Simpleforwarder.h"
 
 Ports::Ports(polycube::service::Cube<Ports> &parent,
-             std::shared_ptr<polycube::service::PortIface> port,
-             const PortsJsonObject &conf)
-    : PortsBase(parent, port) {}
+    std::shared_ptr<polycube::service::PortIface> port,
+    const PortsJsonObject &conf)
+    : PortsBase(parent, port) {
+  if (conf.ipIsSet()) {
+    setIp(conf.getIp());
+  }
+
+}
 
 Ports::~Ports() {}
+
+std::string Ports::getIp() {
+  return ip_;
+}
+
+void Ports::setIp(const std::string &value) {
+  ip_ = value;
+}

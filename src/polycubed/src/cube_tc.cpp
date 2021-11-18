@@ -29,9 +29,9 @@ namespace polycubed {
 CubeTC::CubeTC(const std::string &name, const std::string &service_name,
                const std::vector<std::string> &ingress_code,
                const std::vector<std::string> &egress_code, LogLevel level,
-               bool shadow, bool span)
+               bool shadow, bool span, bool dyn_opt_enabled, const std::vector<std::string> &cflags)
     : Cube(name, service_name, PatchPanel::get_tc_instance(), level,
-           CubeType::TC, shadow, span) {
+           CubeType::TC, shadow, span, dyn_opt_enabled, cflags) {
   // it has to be done here becuase it needs the load, compile methods
   // to be ready
   Cube::init(ingress_code, egress_code);
@@ -420,6 +420,12 @@ int pcn_pkt_redirect(struct CTXTYPE *skb,
     packet_span(skb, port);
 #endif
   return RX_REDIRECT;
+}
+
+static __always_inline
+void pcn_pkt_recirculate(struct CTXTYPE *skb, u32 port) {
+  u32 index = port << 16 | CUBE_ID;
+  nodes.call(skb, index);
 }
 #endif
 

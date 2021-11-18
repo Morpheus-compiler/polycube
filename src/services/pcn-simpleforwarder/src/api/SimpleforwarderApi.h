@@ -46,9 +46,12 @@ Response read_simpleforwarder_actions_by_id_handler(const char *name, const Key 
 Response read_simpleforwarder_actions_list_by_id_handler(const char *name, const Key *keys, size_t num_keys);
 Response read_simpleforwarder_actions_outport_by_id_handler(const char *name, const Key *keys, size_t num_keys);
 Response read_simpleforwarder_by_id_handler(const char *name, const Key *keys, size_t num_keys);
+Response read_simpleforwarder_dyn_opt_by_id_handler(const char *name, const Key *keys, size_t num_keys);
 Response read_simpleforwarder_list_by_id_handler(const char *name, const Key *keys, size_t num_keys);
 Response read_simpleforwarder_ports_by_id_handler(const char *name, const Key *keys, size_t num_keys);
+Response read_simpleforwarder_ports_ip_by_id_handler(const char *name, const Key *keys, size_t num_keys);
 Response read_simpleforwarder_ports_list_by_id_handler(const char *name, const Key *keys, size_t num_keys);
+Response read_simpleforwarder_simple_redirect_by_id_handler(const char *name, const Key *keys, size_t num_keys);
 Response replace_simpleforwarder_actions_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
 Response replace_simpleforwarder_actions_list_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
 Response replace_simpleforwarder_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
@@ -61,7 +64,9 @@ Response update_simpleforwarder_actions_outport_by_id_handler(const char *name, 
 Response update_simpleforwarder_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
 Response update_simpleforwarder_list_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
 Response update_simpleforwarder_ports_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
+Response update_simpleforwarder_ports_ip_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
 Response update_simpleforwarder_ports_list_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
+Response update_simpleforwarder_simple_redirect_by_id_handler(const char *name, const Key *keys, size_t num_keys, const char *value);
 
 Response simpleforwarder_actions_list_by_id_help(const char *name, const Key *keys, size_t num_keys);
 Response simpleforwarder_list_by_id_help(const char *name, const Key *keys, size_t num_keys);

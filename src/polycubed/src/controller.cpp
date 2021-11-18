@@ -48,6 +48,7 @@ const std::string CTRL_TC_RX = R"(
 #include <bcc/helpers.h>
 #include <bcc/proto.h>
 #include <uapi/linux/bpf.h>
+#include <uapi/linux/pkt_cls.h>
 #include <linux/skbuff.h>
 
 #include <linux/rcupdate.h>
@@ -59,45 +60,49 @@ const std::string CTRL_TC_RX = R"(
 BPF_TABLE("extern", int, int, nodes, _POLYCUBE_MAX_NODES);
 
 struct metadata {
-	u16 module_index;
+  u16 module_index;
   u8 is_netdev;
-	u16 port_id;
+  u16 port_id;
   u32 flags;
 } __attribute__((packed));
 
+struct index_value {
+  u32 index;
+  struct bpf_spin_lock lock;
+};
+
 BPF_TABLE("array", u32, struct metadata, md_map_rx, MD_MAP_SIZE);
-BPF_TABLE("array", u32, u32, index_map_rx, 1);
+BPF_ARRAY(index_map_rx, struct index_value, 1);
 
 int controller_module_rx(struct __sk_buff *ctx) {
   pcn_log(ctx, LOG_TRACE, "[tc-decapsulator]: from controller");
 
 	u32 zero = 0;
-	u32 *index = index_map_rx.lookup(&zero);
-	if (!index) {
+	struct index_value *index_elem = index_map_rx.lookup(&zero);
+	if (!index_elem) {
     pcn_log(ctx, LOG_ERR, "[tc-decapsulator]: !index");
-		return 2;
+		return TC_ACT_SHOT;
 	}
 
-	rcu_read_lock();
-
-	(*index)++;
-	*index %= MD_MAP_SIZE;
-	rcu_read_unlock();
-
-	u32 i = *index;
+  bpf_spin_lock(&index_elem->lock);
+  (index_elem->index)++;
+  index_elem->index %= MD_MAP_SIZE;
+  
+	u32 i = index_elem->index;
+  bpf_spin_unlock(&index_elem->lock);
 
 	struct metadata *md = md_map_rx.lookup(&i);
 	if (!md) {
 		pcn_log(ctx, LOG_ERR, "[tc-decapsulator]: !md");
-		return 2;
+		return TC_ACT_SHOT;
 	}
 
-	u16 in_port = md->port_id;
-	u16 module_index = md->module_index;
+  u16 in_port = md->port_id;
+  u16 module_index = md->module_index;
   u8 is_netdev = md->is_netdev;
   u32 flags = md->flags;
 
-	ctx->cb[0] = in_port << 16 | module_index;
+  ctx->cb[0] = in_port << 16 | module_index;
   ctx->cb[2] = flags;
   if (is_netdev) {
     return bpf_redirect(module_index, 0);
@@ -110,9 +115,9 @@ int controller_module_rx(struct __sk_buff *ctx) {
     }
   }
 
-	nodes.call(ctx, module_index);
+  nodes.call(ctx, module_index);
   pcn_log(ctx, LOG_ERR, "[tc-decapsulator]: 'nodes.call'. Module is: %d", module_index);
-	return 2;
+	return TC_ACT_SHOT;
 }
 )";
 
@@ -138,10 +143,15 @@ struct pkt_metadata {
   u32 md[3];  // generic metadata
 } __attribute__((packed));
 
+struct index_value {
+  u32 index;
+  struct bpf_spin_lock lock;
+};
+
 BPF_TABLE("extern", int, int, xdp_nodes, _POLYCUBE_MAX_NODES);
 BPF_TABLE_PUBLIC("percpu_array", u32, struct pkt_metadata, port_md, 1);
 BPF_TABLE("array", u32, struct xdp_metadata, md_map_rx, MD_MAP_SIZE);
-BPF_TABLE("array", u32, u32, xdp_index_map_rx, 1);
+BPF_ARRAY(xdp_index_map_rx, struct index_value, 1);
 
 int controller_module_rx(struct xdp_md *ctx) {
   pcn_log(ctx, LOG_TRACE, "[xdp-decapsulator]: from controller");
@@ -152,19 +162,18 @@ int controller_module_rx(struct xdp_md *ctx) {
     return XDP_ABORTED;
   }
 
-  u32 *index = xdp_index_map_rx.lookup(&zero);
-  if (!index) {
+  struct index_value *index_elem = xdp_index_map_rx.lookup(&zero);
+  if (!index_elem) {
     pcn_log(ctx, LOG_ERR, "[xdp-decapsulator]: !index");
     return XDP_ABORTED;
   }
 
-  rcu_read_lock();
-
-  (*index)++;
-  *index %= MD_MAP_SIZE;
-  rcu_read_unlock();
-
-  u32 i = *index;
+  bpf_spin_lock(&index_elem->lock);
+  (index_elem->index)++;
+  index_elem->index %= MD_MAP_SIZE;
+  
+  u32 i = index_elem->index;
+  bpf_spin_unlock(&index_elem->lock);
 
   struct xdp_metadata *xdp_md = md_map_rx.lookup(&i);
   if (!xdp_md) {
@@ -394,8 +403,12 @@ int Controller::get_fd() const {
 void Controller::log_msg(const LogMsg *msg) {
   spdlog::level::level_enum level_ =
       logLevelToSPDLog((polycube::LogLevel)msg->level);
-  auto print =
-      polycube::service::utils::format_debug_string(msg->msg, msg->args);
+
+  uint64_t args[4];
+  for (int i = 0; i < sizeof(args)/sizeof(args[0]); i++) {
+    args[i] = msg->args[i];
+  }
+  auto print = polycube::service::utils::format_debug_string(msg->msg, args);
   logger->log(level_, print.c_str());
 }
 

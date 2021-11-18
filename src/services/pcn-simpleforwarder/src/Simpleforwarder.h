@@ -33,6 +33,13 @@ class Simpleforwarder : public SimpleforwarderBase {
   void packet_in(Ports &port, polycube::service::PacketInMetadata &md,
                  const std::vector<uint8_t> &packet) override;
 
+  bool getDynOpt() override;
+  /// <summary>
+  /// Flag to indicate if a simple redirect in the other port should be performed
+  /// </summary>
+  bool getSimpleRedirect() override;
+  void setSimpleRedirect(const bool &value) override;
+
   /// <summary>
   /// Entry of the Actions table
   /// </summary>
@@ -42,4 +49,9 @@ class Simpleforwarder : public SimpleforwarderBase {
                   const ActionsJsonObject &conf) override;
   void delActions(const std::string &inport) override;
   void delActionsList() override;
+
+  private:
+    void reload_code();
+
+    bool simple_redirect_;
 };

@@ -388,7 +388,7 @@ VIfaceImpl::VIfaceImpl(string name, bool tap, int id)
     this->idseq++;
 }
 
-VIfaceImpl::~VIfaceImpl()
+VIfaceImpl::~VIfaceImpl() noexcept(false)
 {
     if (close(this->queues.rx) ||
         close(this->queues.tx) ||

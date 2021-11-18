@@ -39,6 +39,8 @@ class RawTable::impl {
   int get_and_delete_batch(void *keys, void *values, unsigned int *count, void *in_batch = nullptr, void *out_batch = nullptr) const;
   int update_batch(void *keys, void *values, unsigned int *count) const;
 
+  int get_fd() const;
+
   int first(void *key) const;
   int next(const void *key, void *next);
 
@@ -94,6 +96,10 @@ int RawTable::impl::get_and_delete_batch(void *keys, void *values, unsigned int 
 
 int RawTable::impl::update_batch(void *keys, void *values, unsigned int *count) const {
   return bpf_map_update_batch(fd_, keys, values, count, nullptr);
+}
+
+int RawTable::impl::get_fd() const {
+  return fd_;
 }
 
 // QUEUE/STACK eBPF maps impl
@@ -161,6 +167,10 @@ int RawTable::update_batch(void *keys, void *values, unsigned int *count){
   return pimpl_->update_batch(keys, values, count);
 }
 
+int RawTable::get_fd() const {
+  return pimpl_->get_fd();
+}
+
 //PIMPL for QUEUE/STACK maps
 
 RawQueueStackTable::~RawQueueStackTable() = default;
@@ -175,6 +185,50 @@ int RawQueueStackTable::push(const void *value) {
   return pimpl_->push(value);
 }
 
+// QUEUE/STACK eBPF maps impl
+class MapInMapTable::impl {
+ public:
+  explicit impl(void *op);
+  ~impl() = default;
+
+  bool update(const int &index, const int &inner_map_fd);
+  bool remove(const int &index);
+
+  int get_fd();
+
+ private:
+  int fd_;
+};
+
+MapInMapTable::impl::impl(void *op) : fd_(*(int *)op) {}
+
+bool MapInMapTable::impl::update(const int &index, const int &inner_map_fd) {
+  return bpf_map_update_elem(fd_, static_cast<const void*>(&index), static_cast<const void*>(&inner_map_fd), 0) >= 0;
+}
+
+bool MapInMapTable::impl::remove(const int &index) {
+  return bpf_map_delete_elem(fd_, static_cast<const void*>(&index)) >= 0;
+}
+
+int MapInMapTable::impl::get_fd() {
+  return fd_;
+}
+
+MapInMapTable::~MapInMapTable() = default;
+
+MapInMapTable::MapInMapTable(void *op) : pimpl_(new impl(op)) {}
+
+bool MapInMapTable::update(const int &index, const int &inner_map_fd) {
+  return pimpl_->update(index, inner_map_fd);
+}
+
+bool MapInMapTable::remove(const int &index) {
+  return pimpl_->remove(index);
+}
+
+int MapInMapTable::get_fd() {
+  return pimpl_->get_fd();
+}
 
 }  // namespace service
 }  // namespace polycube

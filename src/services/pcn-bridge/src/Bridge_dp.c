@@ -166,6 +166,7 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   bool tagged = pcn_is_vlan_present(ctx);
 
   if (tagged) {
+    pcn_log(ctx, LOG_DEBUG, "Packet is tagged");
     int result;
     if ((result = pcn_get_vlan_id(ctx)) < 0)
       goto DROP;
@@ -268,9 +269,13 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   dst_key.vlan = vlanid;
   dst_key.mac = eth->dst;
 
+  // u32 hash = jhash_((void *)&dst_key, sizeof(dst_key), JHASH_INITVAL);
+  // bpf_trace_printk("Before entry not found with hash: %u", hash);
   // lookup in forwarding table fwdtable
   struct fwd_entry *entry = fwdtable.lookup(&dst_key);
   if (!entry) {
+    // hash = jhash_((void *)&dst_key, sizeof(dst_key), JHASH_INITVAL);
+    // bpf_trace_printk("entry not found in filtering database with hash");
     pcn_log(ctx, LOG_TRACE, "entry not found in filtering database, flooding");
     goto DO_FLOODING;
   }
@@ -280,13 +285,13 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   }
 
   // check if the entry is too old
-  u32 timestamp = entry->timestamp;
-  if (now - timestamp > AGING_TIME) {
-    pcn_log(ctx, LOG_DEBUG, "Entry too old");
-    fwdtable.delete(&dst_key);
-    goto DO_FLOODING;
-  }
-  entry->timestamp = now;
+  // u32 timestamp = entry->timestamp;
+  // if (now - timestamp > AGING_TIME) {
+  //   pcn_log(ctx, LOG_DEBUG, "Entry too old");
+  //   fwdtable.delete(&dst_key);
+  //   goto DO_FLOODING;
+  // }
+  // entry->timestamp = now;
 
 FORWARD:;
   u32 dst_interface = entry->port;  // workaround for verifier

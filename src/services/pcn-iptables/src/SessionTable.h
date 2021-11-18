@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "../interface/SessionTableInterface.h"
+#include "../base/SessionTableBase.h"
 
 #include <spdlog/spdlog.h>
 
@@ -35,16 +35,12 @@ enum {
 
 class Iptables;
 
-using namespace io::swagger::server::model;
+using namespace polycube::service::model;
 
-class SessionTable : public SessionTableInterface {
+class SessionTable : public SessionTableBase {
  public:
   SessionTable(Iptables &parent, const SessionTableJsonObject &conf);
   virtual ~SessionTable();
-
-  std::shared_ptr<spdlog::logger> logger();
-  void update(const SessionTableJsonObject &conf) override;
-  SessionTableJsonObject toJsonObject() override;
 
   /// <summary>
   /// Source IP
@@ -79,6 +75,5 @@ class SessionTable : public SessionTableInterface {
   static std::string stateFromNumberToString(int state);
 
  private:
-  Iptables &parent_;
   SessionTableJsonObject fields;
 };

@@ -47,7 +47,8 @@ struct elements {
   uint64_t bits[_MAXRULES];
 };
 
-BPF_HASH(transportProto_DIRECTION, uint8_t, struct elements);
+BPF_TABLE_RO("hash", uint8_t, struct elements, transportProto_DIRECTION, 10240, 1);
+//BPF_HASH(transportProto_DIRECTION, uint8_t, struct elements);
 static __always_inline struct elements *getBitVect(uint8_t *key) {
   return transportProto_DIRECTION.lookup(key);
 }
@@ -61,6 +62,21 @@ static __always_inline struct elements *getShared() {
 
 BPF_TABLE("extern", int, u64, pkts_default__DIRECTION, 1);
 BPF_TABLE("extern", int, u64, bytes_default__DIRECTION, 1);
+BPF_TABLE("extern", int, u64, default_action__DIRECTION, 1);
+
+static __always_inline int applyDefaultAction(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action__DIRECTION.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
 static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
   u64 *value;
   int zero = 0;
@@ -76,7 +92,7 @@ static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
 }
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "Code l4proto_DIRECTION receiving packet. ");
+  pcn_log(ctx, LOG_DEBUG, "[L4ProtocolLookup] Code l4proto_DIRECTION receiving packet. ");
 
 /*The struct elements and the lookup table are defined only if _NR_ELEMENTS>0,
  * so
@@ -91,14 +107,21 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 
   uint8_t proto = pkt->l4proto;
   struct elements *ele = getBitVect(&proto);
-
+//    struct elements ele_try;
+//
+//    for (int i = 0; i < _NR_ELEMENTS; ++i) {
+//      /*This is the first module, it initializes the percpu*/
+//      (ele_try.bits)[i] = 0x7FFFFFFFFFFFFFFF;
+//    }
+//
+//    struct elements *ele = &ele_try;
   if (ele == NULL) {
     proto = 0;
     ele = getBitVect(&proto);
     if (ele == NULL) {
-      pcn_log(ctx, LOG_DEBUG, "No match, dropping. proto %d .", proto);
+      pcn_log(ctx, LOG_DEBUG, "[L4ProtocolLookup] No match, dropping. proto %d .", proto);
       incrementDefaultCounters_DIRECTION(md->packet_len);
-      _DEFAULTACTION
+      return applyDefaultAction(ctx);
     }
   }
   key = 0;
@@ -108,15 +131,8 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
     return RX_DROP;
   } else {
     bool isAllZero = true;
-/*#pragma unroll does not accept a loop with a single iteration, so we need to
- * distinguish cases to avoid a verifier error.*/
-#if _NR_ELEMENTS == 1
-    (result->bits)[0] = (ele->bits)[0] & (result->bits)[0];
-    if (result->bits[0])
-      isAllZero = false;
-#else
+
     int i = 0;
-#pragma unroll
     for (i = 0; i < _NR_ELEMENTS; ++i) {
       (result->bits)[i] = (result->bits)[i] & (ele->bits)[i];
 
@@ -124,12 +140,11 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
         isAllZero = false;
     }
 
-#endif
     if (isAllZero) {
       pcn_log(ctx, LOG_DEBUG,
-              "Bitvector is all zero. Break pipeline for l4proto_DIRECTION");
+              "[L4ProtocolLookup] Bitvector is all zero. Break pipeline for l4proto_DIRECTION");
       incrementDefaultCounters_DIRECTION(md->packet_len);
-      _DEFAULTACTION
+      return applyDefaultAction(ctx);
     }
   }  // if result == NULL
 

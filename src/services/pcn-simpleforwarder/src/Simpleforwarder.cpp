@@ -25,17 +25,43 @@ Simpleforwarder::Simpleforwarder(const std::string name,
       SimpleforwarderBase(name) {
   logger()->info("Creating Simpleforwarder instance");
   addPortsList(conf.getPorts());
+  setSimpleRedirect(conf.getSimpleRedirect());
   addActionsList(conf.getActions());
+
+  reload_code();
 }
 
 Simpleforwarder::~Simpleforwarder() {
   logger()->info("Destroying Simpleforwarder instance");
 }
 
+bool Simpleforwarder::getDynOpt() {
+  return true;
+}
+
+void Simpleforwarder::reload_code() {
+  std::string new_simpleforwarder_code = simpleforwarder_code;
+  if (simple_redirect_) {
+    polycube::service::utils::replaceAll(new_simpleforwarder_code, "_SIMPLE_REDIRECT_", std::to_string(1));
+  } else {
+    polycube::service::utils::replaceAll(new_simpleforwarder_code, "_SIMPLE_REDIRECT_", std::to_string(0));
+  }
+
+  reload(new_simpleforwarder_code);
+}
+
 void Simpleforwarder::packet_in(Ports &port,
                                 polycube::service::PacketInMetadata &md,
                                 const std::vector<uint8_t> &packet) {
   logger()->info("Packet received from port {0}", port.name());
+}
+
+bool Simpleforwarder::getSimpleRedirect() {
+  return simple_redirect_;
+}
+
+void Simpleforwarder::setSimpleRedirect(const bool &value) {
+  simple_redirect_ = value;
 }
 
 std::shared_ptr<Actions> Simpleforwarder::getActions(

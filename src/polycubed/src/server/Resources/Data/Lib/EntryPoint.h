@@ -32,4 +32,6 @@ std::string GenerateHandlerName(std::queue<std::string> names,
 
 std::string GenerateHelpName(std::queue<std::string> names);
 
+std::string CamelCaseToUnderscore(std::string &&camelCase);
+
 }  // namespace polycube::polycubed::Rest::Resources::Data::Lib::EntryPoint

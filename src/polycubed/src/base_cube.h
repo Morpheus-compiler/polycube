@@ -45,14 +45,13 @@ using polycube::service::CubeType;
 
 using json = nlohmann::json;
 
-namespace polycube {
-namespace polycubed {
+namespace polycube::polycubed {
 
 class BaseCube : virtual public BaseCubeIface {
  public:
   explicit BaseCube(const std::string &name, const std::string &service_name,
                     const std::string &master_code, PatchPanel &patch_panel,
-                    LogLevel level, CubeType type);
+                    LogLevel level, CubeType type, bool dyn_opt_enabled, const std::vector<std::string> &cflags);
   virtual ~BaseCube();
 
   // It is not possible to copy nor assign nor move an cube.
@@ -66,24 +65,33 @@ class BaseCube : virtual public BaseCubeIface {
 
   static std::string get_wrapper_code();
 
-  CubeType get_type() const;
-  uint32_t get_id() const;
-  uint16_t get_index(ProgramType type) const;
-  const std::string get_name() const;
-  const std::string get_service_name() const;
-  const Guid &uuid() const;
+  CubeType get_type() const override;
+  uint32_t get_id() const override;
+  uint16_t get_index(ProgramType type) const override;
+  const std::string get_name() const override;
+  const std::string get_service_name() const override;
+  const bool get_dyn_opt_enabled() const override;
+  const Guid &uuid() const override;
 
   int get_table_fd(const std::string &table_name, int index, ProgramType type);
   const ebpf::TableDesc &get_table_desc(const std::string &table_name, int index,
                              ProgramType type);
 
-  void set_log_level(LogLevel level);
-  LogLevel get_log_level() const;
+  void set_log_level(LogLevel level) override;
+  LogLevel get_log_level() const override;
 
-  void set_conf(const nlohmann::json &conf);
-  virtual nlohmann::json to_json() const;
+  void set_conf(const nlohmann::json &conf) override;
+  virtual nlohmann::json to_json() const override;
+
+  void set_cflags(const std::vector<std::string> &cflags);
+  const std::vector<std::string> &get_cflags();
 
   void set_log_level_cb(const polycube::service::set_log_level_cb &cb);
+
+  bool handle_dynamic_opt_callback(int fd, int index, const ProgramType &type);
+
+  const bool get_morpheus_started() const override;
+  void set_start_morpheus(bool start) override;
 
  protected:
   static const int _POLYCUBE_MAX_BPF_PROGRAMS = 64;
@@ -91,7 +99,8 @@ class BaseCube : virtual public BaseCubeIface {
   static_assert(_POLYCUBE_MAX_PORTS <= 0xffff,
           "_POLYCUBE_MAX_PORTS shouldn't be great than 0xffff, "
           "id 0xffff was used by iptables wild card index");
-  static std::vector<std::string> cflags_;
+  static std::vector<std::string> default_cflags_;
+  std::vector<std::string> cflags_;
 
   virtual int load(ebpf::BPF &bpf, ProgramType type) = 0;
   virtual void unload(ebpf::BPF &bpf, ProgramType type) = 0;
@@ -125,6 +134,8 @@ class BaseCube : virtual public BaseCubeIface {
     std::array<std::string, _POLYCUBE_MAX_BPF_PROGRAMS> &programs_code,
     std::unique_ptr<ebpf::BPFProgTable> &programs_table);
 
+  bool do_start_morpheus(bool start);
+
   PatchPanel &patch_panel_;
 
   CubeType type_;
@@ -152,6 +163,9 @@ class BaseCube : virtual public BaseCubeIface {
   std::shared_ptr<spdlog::logger> logger;
   LogLevel level_;
 
+  bool dyn_opt_enabled_;
+  bool morpheus_started_;
+
   std::mutex cube_mutex_;  // blocks operations over the whole cube
  private:
   // ebpf wrappers
@@ -163,5 +177,4 @@ class BaseCube : virtual public BaseCubeIface {
   polycube::service::set_log_level_cb log_level_cb_;
 };
 
-}  // namespace polycubed
 }  // namespace polycube

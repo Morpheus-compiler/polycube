@@ -24,7 +24,7 @@
       polycube::polycubed::Rest::Parser::XPathParser::location_type *yylloc)
 
 #ifndef yyFlexLexerOnce
-#include "FlexLexer.h"
+#include <FlexLexer.h>
 #endif
 
 #include "XPathParser.h"

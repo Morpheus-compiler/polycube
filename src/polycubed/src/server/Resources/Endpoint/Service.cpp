@@ -25,6 +25,8 @@
 #include "../Body/JsonNodeField.h"
 #include "../Body/ListKey.h"
 
+#include "polycube/services/fifo_map.hpp"
+
 #include <memory>
 
 namespace polycube::polycubed::Rest::Resources::Endpoint {

@@ -164,6 +164,14 @@ class Router : public RouterBase {
                             const std::vector<uint8_t> &packet);
   void generate_arp_reply(Port &port, PacketInMetadata &md,
                           const std::vector<uint8_t> &packet);
+  
+  std::string getRouterPortSwitchCaseCode(const std::string &var_name, const std::string &key_var_name);
+  std::string getRoutingTableSwitchCaseCode(const std::string &var_name, const std::string &key_var_name);
+  std::string getArpSwitchCaseCode(const std::string &var_name, const std::string &key_var_name);
+  
+  std::string getCodeWithRouterPortOptimization(const std::string &code);
+  std::string getCodeWithArpOptimization(const std::string &code);
+  std::string getCodeWithRoutingTableOptimization(const std::string &code);
 
   // Methods to manage the routing table
   void find_new_active_nexthop(const std::string &network,

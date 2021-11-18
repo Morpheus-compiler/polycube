@@ -59,12 +59,18 @@ class Simplebridge : public SimplebridgeBase {
  private:
   std::unordered_map<std::string, Ports> ports_;
   std::shared_ptr<Fdb> fdb_ = nullptr;
+  std::string opt_code;
 
   void updateTimestamp();
   void updateTimestampTimer();
+  void optimizationThreadReload();
+  std::string getFwdSwitchCaseCode();
   void quitAndJoin();
+  
+  void reloadWithOptimization();
 
   std::thread timestamp_update_thread_;
+  std::thread optimization_thread_;
   std::atomic<bool> quit_thread_;
 
   void flood_packet(Port &port, PacketInMetadata &md,

@@ -15,7 +15,7 @@
  */
 
 #include "base_cube.h"
-
+#include "bpf_module.h"
 #include "polycube/common.h"
 
 namespace polycube {
@@ -40,7 +40,7 @@ uint64_t genBaseTime() {
   return epoch.time_since_epoch().count() - up.time_since_epoch().count();
 }
 
-std::vector<std::string> BaseCube::cflags_ = {
+std::vector<std::string> BaseCube::default_cflags_ = {
     std::string("-D_POLYCUBE_MAX_NODES=") +
         std::to_string(PatchPanel::_POLYCUBE_MAX_NODES),
     std::string("-D_POLYCUBE_MAX_BPF_PROGRAMS=") +
@@ -51,7 +51,7 @@ std::vector<std::string> BaseCube::cflags_ = {
 
 BaseCube::BaseCube(const std::string &name, const std::string &service_name,
                    const std::string &master_code, PatchPanel &patch_panel,
-                   LogLevel level, CubeType type)
+                   LogLevel level, CubeType type, bool dyn_opt_enabled, const std::vector<std::string> &cflags)
     : name_(name),
       service_name_(service_name),
       logger(spdlog::get("polycubed")),
@@ -61,12 +61,17 @@ BaseCube::BaseCube(const std::string &name, const std::string &service_name,
       egress_index_(0),
       level_(level),
       type_(type),
+      dyn_opt_enabled_(dyn_opt_enabled),
       id_(id_generator_.acquire()) {
+
+  cflags_.insert(cflags_.end(), default_cflags_.begin(), default_cflags_.end());
+  cflags_.insert(cflags_.end(), cflags.begin(), cflags.end());
+
   std::lock_guard<std::mutex> guard(bcc_mutex);
 
   // create master program that contains some maps definitions
   master_program_ =
-      std::unique_ptr<ebpf::BPF>(new ebpf::BPF(0, nullptr, false, name));
+      std::unique_ptr<ebpf::BPF>(new ebpf::BPF(0, nullptr, true, name, true, nullptr, false));
   master_program_->init(BASECUBE_MASTER_CODE + master_code, cflags_);
 
   // get references to those maps
@@ -144,6 +149,33 @@ const Guid &BaseCube::uuid() const {
   return uuid_;
 }
 
+const bool BaseCube::get_dyn_opt_enabled() const {
+  return dyn_opt_enabled_;
+}
+
+const bool BaseCube::get_morpheus_started() const {
+  return morpheus_started_;
+}
+
+void BaseCube::set_start_morpheus(bool start) {
+  if (start && !morpheus_started_) {
+    std::lock_guard<std::mutex> cube_guard(cube_mutex_);
+    for (int i = 0; i < ingress_programs_.size(); i++) {
+      if (ingress_programs_[i]) {
+        ingress_programs_[i]->enable_morpheus();
+      }
+    }
+
+    for (int i = 0; i < egress_programs_.size(); i++) {
+      if (egress_programs_[i]) {
+        egress_programs_[i]->enable_morpheus();
+      }
+    }
+
+    morpheus_started_ = true;
+  }
+}
+
 int BaseCube::get_table_fd(const std::string &table_name, int index,
                            ProgramType type) {
   // TODO: Improve bcc api to do it
@@ -153,16 +185,20 @@ int BaseCube::get_table_fd(const std::string &table_name, int index,
   case ProgramType::EGRESS:
     return egress_programs_[index]->get_table(table_name).fd();
   }
+
+  throw std::runtime_error("Unknown program type");
 }
 
 const ebpf::TableDesc &BaseCube::get_table_desc(const std::string &table_name,
                                          int index, ProgramType type) {
   switch (type) {
-  case ProgramType::INGRESS:
-    return ingress_programs_[index]->get_table(table_name).getTableDescription();
-  case ProgramType::EGRESS:
-    return egress_programs_[index]->get_table(table_name).getTableDescription();
+    case ProgramType::INGRESS:
+      return ingress_programs_[index]->get_table(table_name).getTableDescription();
+    case ProgramType::EGRESS:
+      return egress_programs_[index]->get_table(table_name).getTableDescription();
   }
+
+  throw std::runtime_error("Unknown program type");
 }
 
 void BaseCube::reload(const std::string &code, int index, ProgramType type) {
@@ -217,7 +253,8 @@ void BaseCube::do_reload(
   // create new ebpf program, telling to steal the maps of this program
   std::unique_lock<std::mutex> bcc_guard(bcc_mutex);
   std::unique_ptr<ebpf::BPF> new_bpf_program = std::unique_ptr<ebpf::BPF>(
-      new ebpf::BPF(0, nullptr, false, name_, false, programs.at(index).get()));
+      new ebpf::BPF(0, nullptr, true, name_, false, programs.at(index).get(), dyn_opt_enabled_,
+      std::bind(&BaseCube::handle_dynamic_opt_callback, this, std::placeholders::_1, index, type)));
 
   bcc_guard.unlock();
   compile(*new_bpf_program, code, index, type);
@@ -234,6 +271,52 @@ void BaseCube::do_reload(
   programs[index] = std::move(new_bpf_program);
   // update last used code
   programs_code[index] = code;
+}
+
+bool BaseCube::handle_dynamic_opt_callback(int fd, int index, const ProgramType &type) {
+  std::unique_lock<std::mutex> bcc_guard(bcc_mutex);
+
+  switch (type) {
+    case ProgramType::INGRESS:
+      ingress_programs_table_->update_value(index, fd);
+      if (index == 0) {
+        if (ingress_index_) {
+          // already registered in patch panel, just update
+          patch_panel_.update(ingress_index_, fd);
+        } else {
+          // register in patch panel
+          ingress_index_ = patch_panel_.add(fd);
+        }
+      }
+      break;
+    case ProgramType::EGRESS:
+      egress_programs_table_->update_value(index, fd);
+      if (index == 0) {
+        if (egress_index_) {
+          // already registered in patch panel, just update
+          patch_panel_.update(egress_index_, fd);
+        } else {
+          // register in patch panel
+          egress_index_ = patch_panel_.add(fd);
+        }
+        break;
+      }
+  }
+
+  // Returning true in this function means that the old program can be safely removed
+  return true;
+}
+
+void BaseCube::set_cflags(const std::vector<std::string> &cflags) {
+  std::lock_guard<std::mutex> lock(bcc_mutex);
+  cflags_.clear();
+
+  cflags_.insert(cflags_.end(), default_cflags_.begin(), default_cflags_.end());
+  cflags_.insert(cflags_.end(), cflags.begin(), cflags.end());
+}
+
+const std::vector<std::string> &BaseCube::get_cflags() {
+  return cflags_;
 }
 
 int BaseCube::add_program(const std::string &code, int index,
@@ -288,8 +371,11 @@ int BaseCube::do_add_program(
 
   std::unique_lock<std::mutex> bcc_guard(bcc_mutex);
   // load and add this program to the list
+  int fd_;
   programs[index] =
-      std::unique_ptr<ebpf::BPF>(new ebpf::BPF(0, nullptr, false, name_));
+      std::make_unique<ebpf::BPF>(0, nullptr, true,
+              name_, true, nullptr, dyn_opt_enabled_,
+              std::bind(&BaseCube::handle_dynamic_opt_callback, this, std::placeholders::_1, index, type));
 
   bcc_guard.unlock();
   compile(*programs.at(index), code, index, type);
@@ -390,6 +476,8 @@ nlohmann::json BaseCube::to_json() const {
   j["service-name"] = service_name_;
   j["type"] = cube_type_to_string(type_);
   j["loglevel"] = logLevelString(level_);
+  j["dyn-opt"] = dyn_opt_enabled_;
+  j["start-morpheus"] = morpheus_started_;
 
   return j;
 }
@@ -409,7 +497,6 @@ BPF_TABLE_SHARED("prog", int, int, egress_programs_xdp,
 )";
 
 const std::string BaseCube::BASECUBE_WRAPPER = R"(
-#define KBUILD_MODNAME "MOD_NAME"
 #include <bcc/helpers.h>
 #include <bcc/proto.h>
 #include <uapi/linux/pkt_cls.h>
@@ -452,6 +539,9 @@ int pcn_pkt_redirect(struct CTXTYPE *skb,
 
 static __always_inline
 int pcn_pkt_drop(struct CTXTYPE *skb, struct pkt_metadata *md);
+
+static __always_inline
+void pcn_pkt_recirculate(struct CTXTYPE *skb, u32 port);
 
 static __always_inline
 int pcn_pkt_controller(struct CTXTYPE *skb, struct pkt_metadata *md,
@@ -521,6 +611,30 @@ static __always_inline
 uint64_t pcn_get_time_epoch() {
   return _EPOCH_BASE + bpf_ktime_get_ns();
 }
+
+typedef __u8  __attribute__((__may_alias__))  __u8_alias_t;
+typedef __u16 __attribute__((__may_alias__)) __u16_alias_t;
+typedef __u32 __attribute__((__may_alias__)) __u32_alias_t;
+typedef __u64 __attribute__((__may_alias__)) __u64_alias_t;
+
+#define READ_ONCE(x)					\
+({							\
+	union { typeof(x) __val; char __c[1]; } __u =	\
+		{ .__c = { 0 } };			\
+	__read_once_size(&(x), __u.__c, sizeof(x));	\
+	__u.__val;					\
+})
+
+#define WRITE_ONCE(x, val)				\
+({							\
+	union { typeof(x) __val; char __c[1]; } __u =	\
+		{ .__val = (val) }; 			\
+	__write_once_size(&(x), __u.__c, sizeof(x));	\
+	__u.__val;					\
+})
+
+#define NO_TEAR_ADD(x, val) WRITE_ONCE((x), READ_ONCE(x) + (val))
+#define NO_TEAR_INC(x) NO_TEAR_ADD((x), 1)
 )";
 
 }  // namespace polycubed

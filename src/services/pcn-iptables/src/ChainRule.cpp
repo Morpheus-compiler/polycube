@@ -19,7 +19,7 @@
 #include "Iptables.h"
 
 ChainRule::ChainRule(Chain &parent, const ChainRuleJsonObject &conf)
-    : parent_(parent), id(conf.getId()) {
+    : ChainRuleBase(parent), id(conf.getId()) {
   logger()->trace("Creating ChainRule instance");
   update(conf);
 }
@@ -31,11 +31,7 @@ void ChainRule::update(const ChainRuleJsonObject &conf) {
   // in the conf JsonObject.
   // You can modify this implementation.
 
-  if (conf.conntrackIsSet()) {
-    if (!parent_.parent_.isContrackActive()) {
-      throw new std::runtime_error(
-          "Please enable the connection tracking module.");
-    }
+  if (conf.conntrackIsSet() && parent_.parent_.isContrackActive()) {
     this->conntrack = conf.getConntrack();
     conntrackIsSet = true;
   }
@@ -48,12 +44,80 @@ void ChainRule::update(const ChainRuleJsonObject &conf) {
     ipDstIsSet = true;
   }
   if (conf.sportIsSet()) {
-    this->srcPort = conf.getSport();
-    srcPortIsSet = true;
+    if (conf.getSport().find(':') != std::string::npos) {
+      std::vector<std::string> res;
+      splitString(conf.getSport(), res, ':');
+      if (res.size() != 2) {
+        throw std::runtime_error("Source port is not correctly formatted");
+      }
+
+      unsigned int sport = std::stoul(res[0]);
+      unsigned int sport_end = std::stoul(res[1]);
+
+      if (sport > std::numeric_limits<uint16_t>::max() || sport_end > std::numeric_limits<uint16_t>::max()) {
+        throw std::runtime_error("Source port is not in the correct range" + std::to_string(sport));
+      } else if (sport == 0 && sport_end == 65535) {
+        // Do not do nothing, it is like wildcard
+        srcPortIsSet = false;
+        srcPortEndIsSet = false;
+      } else if (sport == sport_end) {
+        this->srcPort = sport;
+        srcPortIsSet = true;
+        srcPortEndIsSet = false;
+      } else {
+        this->srcPort = sport;
+        this->srcPortEnd = sport_end;
+        srcPortIsSet = true;
+        srcPortEndIsSet = true;
+      }
+    } else {
+      unsigned int sport = std::stoul(conf.getSport());
+      if (sport >= std::numeric_limits<uint16_t>::max()) {
+        throw std::runtime_error("Source port is not in the correct range"  + std::to_string(sport));
+      } else {
+        this->srcPort = sport;
+        srcPortIsSet = true;
+        srcPortEndIsSet = false;
+      }
+    }
   }
   if (conf.dportIsSet()) {
-    this->dstPort = conf.getDport();
-    dstPortIsSet = true;
+    if (conf.getDport().find(':') != std::string::npos) {
+      std::vector<std::string> res;
+      splitString(conf.getDport(), res, ':');
+      if (res.size() != 2) {
+        throw std::runtime_error("Destination port is not correctly formatted");
+      }
+
+      unsigned int dport = std::stoul(res[0]);
+      unsigned int dport_end = std::stoul(res[1]);
+
+      if (dport > std::numeric_limits<uint16_t>::max() || dport_end > std::numeric_limits<uint16_t>::max()) {
+        throw std::runtime_error("Destination port is not in the correct range"  + std::to_string(dport));
+      } else if (dport == 0 && dport_end == 65535) {
+        // Do not do nothing, it is like wildcard
+        dstPortIsSet = false;
+        dstPortEndIsSet = false;
+      } else if (dport == dport_end) {
+        this->dstPort = dport;
+        dstPortIsSet = true;
+        dstPortEndIsSet = false;
+      } else {
+        this->dstPort = dport;
+        this->dstPortEnd = dport_end;
+        dstPortIsSet = true;
+        dstPortEndIsSet = true;
+      }
+    } else {
+      unsigned int dport = std::stoul(conf.getDport());
+      if (dport >= std::numeric_limits<uint16_t>::max()) {
+        throw std::runtime_error("Destination port is not in the correct range" + std::to_string(dport));
+      } else {
+        this->dstPort = dport;
+        dstPortIsSet = true;
+        dstPortEndIsSet = false;
+      }
+    }
   }
   if (conf.tcpflagsIsSet()) {
     flagsFromStringToMasks(conf.getTcpflags(), flagsSet, flagsNotSet);
@@ -79,6 +143,16 @@ void ChainRule::update(const ChainRuleJsonObject &conf) {
   } else {
     this->action = ActionEnum::DROP;
     actionIsSet = true;
+  }
+}
+
+template <class Container>
+void ChainRule::splitString(const std::string& str, Container& cont, char delim)
+{
+  std::stringstream ss(str);
+  std::string token;
+  while (std::getline(ss, token, delim)) {
+    cont.push_back(token);
   }
 }
 
@@ -205,6 +279,22 @@ bool ChainRule::equal(ChainRule &cmp) {
       return false;
   }
 
+  if (isSportRange() && cmp.isSportRange()) {
+    if (srcPortEnd != cmp.srcPortEnd) {
+      return false;
+    }
+  } else if (!isSportRange() != !cmp.isSportRange()) {
+    return false;
+  }
+
+  if (isDportRange() && cmp.isDportRange()) {
+    if (dstPortEnd != cmp.dstPortEnd) {
+      return false;
+    }
+  } else if (!isDportRange() != !cmp.isDportRange()) {
+    return false;
+  }
+
   return true;
 }
 
@@ -286,20 +376,24 @@ void ChainRule::setOutIface(const std::string &value) {
       "new one.");
 }
 
-uint16_t ChainRule::getDport() {
+std::string ChainRule::getDport() {
   // This method retrieves the dport value.
   if (!dstPortIsSet) {
     throw std::runtime_error("DPort not set.");
+  } else if (dstPortEndIsSet) {
+    return std::string(std::to_string(this->dstPort) + ":" + std::to_string(this->dstPortEnd));
+  } else {
+    return std::to_string(this->dstPort);
   }
-  return this->dstPort;
 }
 
-void ChainRule::setDport(const uint16_t &value) {
+void ChainRule::setDport(const std::string &value) {
   // This method set the dport value.
   throw std::runtime_error(
       "It is not possible to modify rule fields once created. Replace it with "
       "new one.");
 }
+
 std::string ChainRule::getTcpflags() {
   // This method retrieves the tcpflags value.
   if (!tcpFlagsIsSet) {
@@ -373,15 +467,18 @@ void ChainRule::setAction(const ActionEnum &value) {
       "new one.");
 }
 
-uint16_t ChainRule::getSport() {
+std::string ChainRule::getSport() {
   // This method retrieves the sport value.
   if (!srcPortIsSet) {
     throw std::runtime_error("SPort not set.");
+  } else if (srcPortEndIsSet) {
+    return std::string(std::to_string(this->srcPort) + ":" + std::to_string(this->srcPortEnd));
+  } else {
+    return std::to_string(this->srcPort);
   }
-  return this->srcPort;
 }
 
-void ChainRule::setSport(const uint16_t &value) {
+void ChainRule::setSport(const std::string &value) {
   // This method set the sport value.
   throw std::runtime_error(
       "It is not possible to modify rule fields once created. Replace it with "
@@ -400,6 +497,42 @@ uint32_t ChainRule::getId() {
   return id;
 }
 
-std::shared_ptr<spdlog::logger> ChainRule::logger() {
-  return parent_.logger();
+bool ChainRule::isDportRange() {
+  return dstPortEndIsSet;
+}
+
+bool ChainRule::isSportRange() {
+  return srcPortEndIsSet;
+}
+
+uint16_t ChainRule::getSportStart() {
+  if (!srcPortIsSet) {
+    throw std::runtime_error("sport not set.");
+  }
+
+  return srcPort;
+}
+
+uint16_t ChainRule::getSportEnd() {
+  if (!srcPortEndIsSet) {
+    throw std::runtime_error("sport end not set.");
+  }
+
+  return srcPortEnd;
+}
+
+uint16_t ChainRule::getDportStart() {
+  if (!dstPortIsSet) {
+    throw std::runtime_error("dport not set.");
+  }
+
+  return dstPort;
+}
+
+uint16_t ChainRule::getDportEnd() {
+  if (!dstPortEndIsSet) {
+    throw std::runtime_error("dport end not set.");
+  }
+
+  return dstPortEnd;
 }

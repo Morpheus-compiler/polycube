@@ -18,30 +18,13 @@
 #include "serializer/ChainStatsJsonObject.h"
 
 ChainStats::ChainStats(Chain &parent, const ChainStatsJsonObject &conf)
-    : parent_(parent) {
+    : ChainStatsBase(parent) {
   logger()->trace("Creating ChainStats instance");
   this->counter = conf;
   rule = conf.getId();
 }
 
 ChainStats::~ChainStats() {}
-
-void ChainStats::update(const ChainStatsJsonObject &conf) {
-  // This method updates all the object/parameter in ChainStats object specified
-  // in the conf JsonObject.
-  // You can modify this implementation.
-}
-
-ChainStatsJsonObject ChainStats::toJsonObject() {
-  ChainStatsJsonObject conf;
-
-  conf.setPkts(getPkts());
-  conf.setBytes(getBytes());
-  conf.setId(getId());
-  conf.setDescription(counter.getDescription());
-
-  return conf;
-}
 
 void ChainStats::fetchCounters(const Chain &parent, const uint32_t &id,
                                uint64_t &pkts, uint64_t &bytes) {
@@ -178,8 +161,4 @@ uint32_t ChainStats::getId() {
 std::string ChainStats::getDescription() {
   // This method retrieves the description value.
   return "";
-}
-
-std::shared_ptr<spdlog::logger> ChainStats::logger() {
-  return parent_.logger();
 }

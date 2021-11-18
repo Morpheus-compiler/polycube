@@ -1,5 +1,9 @@
 #!/bin/bash
 
+COLOR_GREEN='\033[0;32m'
+COLOR_RED='\033[0;31m'
+COLOR_OFF='\033[0m' # No Color
+
 # This script compiles and installs polycube and its dependencies
 
 function print_system_info {
@@ -23,6 +27,13 @@ function success_message {
   set +x
   echo
   echo 'Installation completed successfully'
+  echo
+  echo 'You can now start the polycube daemon:'
+  echo '  manually:     sudo polycubed -d'
+  echo '  with systemd: sudo systemctl start polycubed'
+  echo 'and then interact with it using the Polycube command line:'
+  echo '  polycubectl -h'
+  echo
   exit 0
 }
 trap error_message ERR
@@ -104,11 +115,19 @@ if [ "$MODE" == "update" ] ; then
   git log -1
 fi
 
+rm -rf build
 mkdir -p build && cd build
 
+CMAKE_CMD="cmake .. -DCMAKE_C_COMPILER=/usr/bin/gcc-9 \
+                    -DCMAKE_CXX_COMPILER=/usr/bin/g++-9 \
+                    -DLLVM_DIR="${WORKDIR}"/clang+llvm10/lib/cmake/llvm"
+#-Dfolly_DIR=${FOLLY_INSTALL_DIR} \
+#-Dfmt_DIR=${FMT_INSTALL_DIR} \
+#-Dgflags_DIR=${GFLAGS_INSTALL_DIR}
+#"
 # depending on the mode different services are enabled
 if [ "$MODE" == "pcn-iptables" ]; then
-  cmake .. -DENABLE_PCN_IPTABLES=ON \
+  $CMAKE_CMD -DENABLE_PCN_IPTABLES=ON \
     -DENABLE_SERVICE_BRIDGE=OFF \
     -DENABLE_SERVICE_DDOSMITIGATOR=OFF \
     -DENABLE_SERVICE_FIREWALL=OFF \
@@ -127,7 +146,7 @@ if [ "$MODE" == "pcn-iptables" ]; then
     -DENABLE_SERVICE_SYNFLOOD=OFF \
     -DENABLE_SERVICE_PACKETCAPTURE=OFF
 elif [ "$MODE" == "pcn-k8s" ]; then
-  cmake .. -DENABLE_SERVICE_BRIDGE=OFF \
+  $CMAKE_CMD -DENABLE_SERVICE_BRIDGE=OFF \
     -DENABLE_SERVICE_DDOSMITIGATOR=ON \
     -DENABLE_SERVICE_FIREWALL=ON \
     -DENABLE_SERVICE_HELLOWORLD=OFF \
@@ -145,7 +164,7 @@ elif [ "$MODE" == "pcn-k8s" ]; then
     -DENABLE_SERVICE_SYNFLOOD=OFF \
     -DENABLE_SERVICE_PACKETCAPTURE=ON
 else
-  cmake .. -DENABLE_PCN_IPTABLES=ON
+  $CMAKE_CMD -DENABLE_PCN_IPTABLES=ON
 fi
 make -j $(getconf _NPROCESSORS_ONLN)
 $SUDO make install

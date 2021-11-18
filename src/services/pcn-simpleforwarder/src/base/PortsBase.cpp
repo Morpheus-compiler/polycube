@@ -20,15 +20,19 @@ PortsBase::PortsBase(polycube::service::Cube<Ports> &parent,
 PortsBase::~PortsBase() {}
 
 void PortsBase::update(const PortsJsonObject &conf) {
-  Port::set_conf(conf.getBase());
+  set_conf(conf.getBase());
 
+  if (conf.ipIsSet()) {
+    setIp(conf.getIp());
+  }
 }
 
 PortsJsonObject PortsBase::toJsonObject() {
   PortsJsonObject conf;
-  conf.setBase(Port::to_json());
+  conf.setBase(to_json());
 
   conf.setName(getName());
+  conf.setIp(getIp());
 
   return conf;
 }

@@ -43,7 +43,8 @@ class TransparentCube : public BaseCube {
  public:
   TransparentCube(const nlohmann::json &conf,
                   const std::vector<std::string> &ingress_code,
-                  const std::vector<std::string> &egress_code);
+                  const std::vector<std::string> &egress_code,
+                  const std::vector<std::string> &cflags = {});
   virtual ~TransparentCube();
 
   virtual void packet_in(Direction direction, PacketInMetadata &md,

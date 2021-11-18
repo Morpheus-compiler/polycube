@@ -21,7 +21,8 @@ namespace service {
 
 BaseCube::BaseCube(const nlohmann::json &conf,
                    const std::vector<std::string> &ingress_code,
-                   const std::vector<std::string> &egress_code)
+                   const std::vector<std::string> &egress_code,
+                   const std::vector<std::string> &cflags)
   : dismounted_(false),
     logger_(std::make_shared<spdlog::logger>(
           conf.at("name").get<std::string>(), (spdlog::sinks_init_list){
@@ -75,6 +76,13 @@ RawQueueStackTable BaseCube::get_raw_queuestack_table(const std::string &table_n
   return std::move(t);
 }
 
+MapInMapTable BaseCube::get_map_in_map_table(
+  const std::string &table_name, int index, ProgramType type) {
+  int fd = get_table_fd(table_name, index, type);
+  MapInMapTable t(&fd);
+  return std::move(t);
+}
+
 void BaseCube::datapath_log_msg(const LogMsg *msg) {
   spdlog::level::level_enum level_ =
       logLevelToSPDLog((polycube::LogLevel)msg->level);
@@ -82,7 +90,11 @@ void BaseCube::datapath_log_msg(const LogMsg *msg) {
 
   switch (msg->type) {
   case 0:
-    print = utils::format_debug_string(msg->msg, msg->args);
+    uint64_t args[4];
+    for (int i = 0; i < sizeof(args)/sizeof(args[0]); i++) {
+      args[i] = msg->args[i];
+    }
+    print = utils::format_debug_string(msg->msg, args);
     logger()->log(level_, print.c_str());
     break;
 
@@ -95,6 +107,14 @@ void BaseCube::datapath_log_msg(const LogMsg *msg) {
 void BaseCube::set_log_level(LogLevel level) {
   set_control_plane_log_level(level);
   cube_->set_log_level(level);
+}
+
+void BaseCube::set_cflags(const std::vector<std::string> &cflags) {
+  cube_->set_cflags(cflags);
+}
+
+const std::vector<std::string> &BaseCube::get_cflags() {
+  return cube_->get_cflags();
 }
 
 void BaseCube::set_control_plane_log_level(LogLevel level) {
@@ -140,6 +160,10 @@ void BaseCube::dismount() {
 
 nlohmann::json BaseCube::to_json() const {
   return cube_->to_json();
+}
+
+const bool BaseCube::get_dyn_opt_enabled() const {
+  return cube_->get_dyn_opt_enabled();
 }
 
 }  // namespace service

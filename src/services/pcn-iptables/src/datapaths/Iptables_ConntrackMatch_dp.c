@@ -65,7 +65,8 @@ static __always_inline struct elements *getShared() {
   return sharedEle.lookup(&key);
 }
 
-BPF_ARRAY(Conntrack_DIRECTION, struct elements, 4);
+BPF_TABLE("array", int, struct elements, Conntrack_DIRECTION, 4);
+//BPF_ARRAY(Conntrack_DIRECTION, struct elements, 4);
 static __always_inline struct elements *getBitVect(uint32_t *key) {
   return Conntrack_DIRECTION.lookup(key);
 }
@@ -73,6 +74,22 @@ static __always_inline struct elements *getBitVect(uint32_t *key) {
 
 BPF_TABLE("extern", int, u64, pkts_default__DIRECTION, 1);
 BPF_TABLE("extern", int, u64, bytes_default__DIRECTION, 1);
+BPF_TABLE("extern", int, u64, default_action__DIRECTION, 1);
+
+static __always_inline int applyDefaultAction(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action__DIRECTION.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
+
 static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
   u64 *value;
   int zero = 0;
@@ -88,10 +105,9 @@ static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
 }
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "Conntrack_DIRECTIONMatching receiving packet");
+  pcn_log(ctx, LOG_DEBUG, "[ConntrackMatch] _DIRECTION: Receiving packet");
 /*The struct elements and the lookup table are defined only if _NR_ELEMENTS>0,
  * so this code has to be used only in this case.*/
-#if _NR_ELEMENTS > 0
   int key = 0;
   struct packetHeaders *pkt = getPacket();
   if (pkt == NULL) {
@@ -102,7 +118,7 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
   uint8_t connStatus = pkt->connStatus;
   uint32_t ct = connStatus;
   pcn_log(ctx, LOG_DEBUG,
-          "Conntrack_DIRECTIONMatching received a packet with state %d",
+          "[ConntrackMatch] _DIRECTION: received a packet with state %d",
           pkt->connStatus);
 
   struct elements *ele = getBitVect(&ct);
@@ -117,37 +133,24 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
     /*Can't happen. The PERCPU is preallocated.*/
     return RX_DROP;
   } else {
-    /*#pragma unroll does not accept a loop with a single iteration, so we need
-     * to
-     * distinguish cases to avoid a verifier error.*/
     bool isAllZero = true;
-#if _NR_ELEMENTS == 1
-    (result->bits)[0] = (ele->bits)[0] & (result->bits)[0];
-    if (result->bits[0] != 0)
-      isAllZero = false;
-#else
-    int i = 0;
-#pragma unroll
-    for (i = 0; i < _NR_ELEMENTS; ++i) {
+
+    for (int i = 0; i < _NR_ELEMENTS; ++i) {
       (result->bits)[i] = (result->bits)[i] & (ele->bits)[i];
       if (result->bits[i] != 0)
         isAllZero = false;
     }
 
-#endif
     if (isAllZero) {
       pcn_log(
           ctx, LOG_DEBUG,
-          "Bitvector is all zero. Break pipeline for ConntrackMatch_DIRECTION");
+          "[ConntrackMatch] Bitvector is all zero. Break pipeline for ConntrackMatch_DIRECTION");
       incrementDefaultCounters_DIRECTION(md->packet_len);
-      _DEFAULTACTION
+      return applyDefaultAction(ctx);
     }
   }  // if result == NULL
 
   call_bpf_program(ctx, _NEXT_HOP_1);
-#else
-  return RX_DROP;
-#endif
 
   return RX_DROP;
 }

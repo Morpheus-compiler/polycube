@@ -95,7 +95,7 @@ static __always_inline void updateForwardingDecision(int decision) {
 }
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "HORUS receiving packet.");
+  pcn_log(ctx, LOG_DEBUG, "[HORUS] Receiving packet.");
 
   // lookup pkt headers
 
@@ -132,7 +132,7 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
   struct horusValue *value;
   value = horusTable.lookup(&key);
 
-  pcn_log(ctx, LOG_DEBUG, "Horus srcIp: %I dstIp: %I", pkt->srcIp, pkt->dstIp);
+  pcn_log(ctx, LOG_DEBUG, "[HORUS] srcIp: %I dstIp: %I", pkt->srcIp, pkt->dstIp);
   if (value == NULL) {
     // Miss, goto pipleline
     goto PIPELINE;
@@ -140,20 +140,20 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
     // Independently from the final action (ACCEPT or DROP)
     // I have to update the counters
     if (value->ruleID < _MAX_RULE_SIZE_FOR_HORUS) {
-      pcn_log(ctx, LOG_DEBUG, "HORUS RuleID: %d", value->ruleID);
+      pcn_log(ctx, LOG_DEBUG, "[HORUS] RuleID: %d", value->ruleID);
       incrementHorusCounters(value->ruleID, md->packet_len);
     } else {
-      pcn_log(ctx, LOG_DEBUG, "HORUS RuleID is greater than _MAX_RULE_SIZE_FOR_HORUS");
+      pcn_log(ctx, LOG_DEBUG, "[HORUS] RuleID is greater than _MAX_RULE_SIZE_FOR_HORUS");
       goto PIPELINE;
     }
 
     if (value->action == 0) {
-      pcn_log(ctx, LOG_DEBUG, "HORUS ACTION=DROP. Drop the packet. ");
+      pcn_log(ctx, LOG_DEBUG, "[HORUS] ACTION=DROP. Drop the packet. ");
       return RX_DROP;
     }
     if (value->action == 1) {
       // goto PASS
-      pcn_log(ctx, LOG_DEBUG, "HORUS ACTION=ACCEPT. Tag with PASS_LABELING. ");
+      pcn_log(ctx, LOG_DEBUG, "[HORUS] ACTION=ACCEPT. Tag with PASS_LABELING. ");
       updateForwardingDecision(PASS_LABELING);
       call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
     }
@@ -161,7 +161,7 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
   }
 
 PIPELINE:;
-  pcn_log(ctx, LOG_DEBUG, "HORUS Lookup MISS. Goto PIPELINE. ");
+  pcn_log(ctx, LOG_DEBUG, "[HORUS] Lookup MISS. Goto PIPELINE. ");
   call_bpf_program(ctx, _CHAINSELECTOR);
   return RX_DROP;
 }

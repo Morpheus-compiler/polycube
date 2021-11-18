@@ -2,14 +2,18 @@ include(${PROJECT_SOURCE_DIR}/cmake/LoadFileAsVariable.cmake)
 
 aux_source_directory(serializer SERIALIZER_SOURCES)
 aux_source_directory(api API_SOURCES)
-aux_source_directory(default-src SRC_SOURCES)
+aux_source_directory(base BASE_SOURCES)
 aux_source_directory(modules MODULES)
 
 include_directories(serializer)
-include_directories(interface)
-include_directories(default-src)
 include_directories(modules)
 include_directories(/usr/include/libnl3)
+
+if (NOT DEFINED POLYCUBE_STANDALONE_SERVICE OR POLYCUBE_STANDALONE_SERVICE)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(POLYCUBE libpolycube)
+  include_directories(${POLYCUBE_INCLUDE_DIRS})
+endif(NOT DEFINED POLYCUBE_STANDALONE_SERVICE OR POLYCUBE_STANDALONE_SERVICE)
 
 # Needed to load files as variables
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -17,7 +21,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(pcn-iptables SHARED
   ${SERIALIZER_SOURCES}
   ${API_SOURCES}
-  ${SRC_SOURCES}
+  ${BASE_SOURCES}
   ${MODULES}
   Chain.cpp
   ChainRule.cpp
@@ -48,9 +52,7 @@ load_file_as_variable(pcn-iptables datapaths/Iptables_TcpFlagsLookup_dp.c iptabl
 # load datamodel in a variable
 load_file_as_variable(pcn-iptables ../datamodel/iptables.yang iptables_datamodel)
 
-target_link_libraries(pcn-iptables
-  polycube
-  uuid)
+target_link_libraries(pcn-iptables ${POLYCUBE_LIBRARIES})
 
 # Specify shared library install directory
 

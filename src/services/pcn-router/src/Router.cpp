@@ -18,6 +18,8 @@
 
 #include "Router.h"
 #include "Router_dp.h"
+#include <regex>
+#include <fstream>
 
 enum {
   SLOWPATH_ARP_REPLY = 1,

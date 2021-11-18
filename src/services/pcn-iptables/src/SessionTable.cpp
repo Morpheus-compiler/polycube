@@ -22,32 +22,12 @@
 using namespace polycube::service;
 
 SessionTable::SessionTable(Iptables &parent, const SessionTableJsonObject &conf)
-    : parent_(parent) {
+    : SessionTableBase(parent) {
   // logger()->trace("Creating SessionTable instance");
   fields = conf;
 }
 
 SessionTable::~SessionTable() {}
-
-void SessionTable::update(const SessionTableJsonObject &conf) {}
-
-SessionTableJsonObject SessionTable::toJsonObject() {
-  SessionTableJsonObject conf;
-
-  conf.setSrc(getSrc());
-
-  conf.setDst(getDst());
-
-  conf.setState(getState());
-
-  conf.setL4proto(getL4proto());
-
-  conf.setDport(getDport());
-
-  conf.setSport(getSport());
-
-  return conf;
-}
 
 std::string SessionTable::getSrc() {
   return fields.getSrc();
@@ -71,10 +51,6 @@ uint16_t SessionTable::getDport() {
 
 uint16_t SessionTable::getSport() {
   return fields.getSport();
-}
-
-std::shared_ptr<spdlog::logger> SessionTable::logger() {
-  return parent_.logger();
 }
 
 std::string SessionTable::stateFromNumberToString(int state) {

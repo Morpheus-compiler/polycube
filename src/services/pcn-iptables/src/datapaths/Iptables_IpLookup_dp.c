@@ -51,8 +51,7 @@ static __always_inline struct elements *getShared() {
   return sharedEle.lookup(&key);
 }
 
-BPF_F_TABLE("lpm_trie", struct lpm_k, struct elements, ip_TYPETrie_DIRECTION,
-            1024, BPF_F_NO_PREALLOC);
+BPF_LPM_TRIE(ip_TYPETrie_DIRECTION, struct lpm_k, struct elements, 1024);
 
 static __always_inline struct elements *getBitVect(struct lpm_k *key) {
   return ip_TYPETrie_DIRECTION.lookup(key);
@@ -61,6 +60,22 @@ static __always_inline struct elements *getBitVect(struct lpm_k *key) {
 
 BPF_TABLE("extern", int, u64, pkts_default__DIRECTION, 1);
 BPF_TABLE("extern", int, u64, bytes_default__DIRECTION, 1);
+BPF_TABLE("extern", int, u64, default_action__DIRECTION, 1);
+
+static __always_inline int applyDefaultAction(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action__DIRECTION.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
+
 static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
   u64 *value;
   int zero = 0;
@@ -82,7 +97,7 @@ static __always_inline struct packetHeaders *getPacket() {
 }
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "Code Ip_TYPE_DIRECTION receiving packet. ");
+  pcn_log(ctx, LOG_DEBUG, "[Ip_TYPELookup] Code Ip_TYPE_DIRECTION receiving packet. ");
 
 /*The struct elements and the lookup table are defined only if NR_ELEMENTS>0, so
  * this code has to be used only in those cases.*/
@@ -96,26 +111,32 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 
   struct lpm_k lpm_key = {32, pkt->_TYPEIp};
   struct elements *ele = getBitVect(&lpm_key);
+
+//  u32 result = jhash(&lpm_key, sizeof(lpm_key), JHASH_INITVAL);
+//  if(!result)
+//    return RX_DROP;
+//
+//  struct elements ele_try;
+//
+//  for (int i = 0; i < _NR_ELEMENTS; ++i) {
+//    /*This is the first module, it initializes the percpu*/
+//    (ele_try.bits)[i] = 0x7FFFFFFFFFFFFFFF;
+//  }
+//
+//  struct elements *ele = &ele_try;
+
   if (ele == NULL) {
-    pcn_log(ctx, LOG_DEBUG, "No match. (pkt->_TYPEIp: %u) ", pkt->_TYPEIp);
+    pcn_log(ctx, LOG_DEBUG, "[Ip_TYPELookup] No match. (pkt->_TYPEIp: %u) ", pkt->_TYPEIp);
     incrementDefaultCounters_DIRECTION(md->packet_len);
-    _DEFAULTACTION
+    return applyDefaultAction(ctx);
   } else {
     struct elements *result = getShared();
     if (result == NULL) {
       /*Can't happen. The PERCPU is preallocated.*/
       return RX_DROP;
     } else {
-      /*#pragma unroll does not accept a loop with a single iteration, so we
-       * need to
-       * distinguish cases to avoid a verifier error.*/
       bool isAllZero = true;
-#if _NR_ELEMENTS == 1
-      (result->bits)[0] = (result->bits)[0] & (ele->bits)[0];
-      if (result->bits[0] != 0)
-        isAllZero = false;
-#else
-#pragma unroll
+
       for (int i = 0; i < _NR_ELEMENTS; ++i) {
         /*This is the first module, it initializes the percpu*/
         (result->bits)[i] = (result->bits)[i] & (ele->bits)[i];
@@ -123,12 +144,12 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
         if (result->bits[i] != 0)
           isAllZero = false;
       }
-#endif
+
       if (isAllZero) {
         pcn_log(ctx, LOG_DEBUG,
-                "Bitvector is all zero. Break pipeline for Ip_TYPE_DIRECTION");
+                "[Ip_TYPELookup] Bitvector is all zero. Break pipeline for Ip_TYPE_DIRECTION");
         incrementDefaultCounters_DIRECTION(md->packet_len);
-        _DEFAULTACTION
+        return applyDefaultAction(ctx);
       }
     }  // if result == NULL
   }    // if ele==NULL

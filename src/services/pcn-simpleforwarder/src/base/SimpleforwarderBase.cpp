@@ -20,7 +20,7 @@ SimpleforwarderBase::SimpleforwarderBase(const std::string name) {
 SimpleforwarderBase::~SimpleforwarderBase() {}
 
 void SimpleforwarderBase::update(const SimpleforwarderJsonObject &conf) {
-  Cube::set_conf(conf.getBase());
+  set_conf(conf.getBase());
 
   if (conf.portsIsSet()) {
     for (auto &i : conf.getPorts()) {
@@ -28,6 +28,9 @@ void SimpleforwarderBase::update(const SimpleforwarderJsonObject &conf) {
       auto m = getPorts(name);
       m->update(i);
     }
+  }
+  if (conf.simpleRedirectIsSet()) {
+    setSimpleRedirect(conf.getSimpleRedirect());
   }
   if (conf.actionsIsSet()) {
     for (auto &i : conf.getActions()) {
@@ -40,12 +43,14 @@ void SimpleforwarderBase::update(const SimpleforwarderJsonObject &conf) {
 
 SimpleforwarderJsonObject SimpleforwarderBase::toJsonObject() {
   SimpleforwarderJsonObject conf;
-  conf.setBase(Cube::to_json());
+  conf.setBase(to_json());
 
   conf.setName(getName());
+  conf.setDynOpt(getDynOpt());
   for (auto &i : getPortsList()) {
     conf.addPorts(i->toJsonObject());
   }
+  conf.setSimpleRedirect(getSimpleRedirect());
   for(auto &i : getActionsList()) {
     conf.addActions(i->toJsonObject());
   }

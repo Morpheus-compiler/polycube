@@ -17,6 +17,7 @@
 #include "../Iptables.h"
 #include "datapaths/Iptables_ConntrackTableUpdate_dp.h"
 
+#include <net/if.h>
 #include <chrono>
 #include <thread>
 #include "polycube/common.h"
@@ -63,7 +64,7 @@ Iptables::ConntrackTableUpdate::ConntrackTableUpdate(
   }
 }
 
-Iptables::ConntrackTableUpdate::~ConntrackTableUpdate() {}
+Iptables::ConntrackTableUpdate::~ConntrackTableUpdate() = default;
 
 void Iptables::ConntrackTableUpdate::quitAndJoin() {
   if (program_type_ == ProgramType::INGRESS) {
@@ -99,8 +100,29 @@ std::string Iptables::ConntrackTableUpdate::getCode() {
     replaceAll(no_macro_code, "call_bpf_program", "call_egress_program");
   }
 
-  replaceAll(no_macro_code, "_FIB_LOOKUP_ENABLED",
-             iptables_.fibLookupEnabled() ? "1" : "0");
+  if (iptables_.getPortsList().size() == 2) {
+    replaceAll(no_macro_code, "_SIMPLE_FORWARD_ENABLED","1");
+    replaceAll(no_macro_code, "_FIB_LOOKUP_ENABLED", "0");
+    for (auto &port : iptables_.getPortsList()) {
+      if (port->index() == 0) {
+        replaceAll(no_macro_code, "_INDEX_FIRST_INTERFACE", std::to_string(0));
+        unsigned int ifindex = if_nametoindex(port->getName().c_str());
+        replaceAll(no_macro_code, "_IFINDEX_FIRST_INTERFACE", std::to_string(ifindex));
+      } else {
+        unsigned int ifindex = if_nametoindex(port->getName().c_str());
+        replaceAll(no_macro_code, "_IFINDEX_SECOND_INTERFACE", std::to_string(ifindex));
+      }
+    }
+  } else {
+    replaceAll(no_macro_code, "_SIMPLE_FORWARD_ENABLED", "0");
+    replaceAll(no_macro_code, "_FIB_LOOKUP_ENABLED", iptables_.fibLookupEnabled() ? "1" : "0");
+  }
+
+  // replaceAll(no_macro_code, "_FIB_LOOKUP_ENABLED",
+  //            iptables_.fibLookupEnabled() ? "1" : "0");
+  
+  replaceAll(no_macro_code, "_CONNTRACK_MAIN_MODE",
+             std::to_string(iptables_.conntrack_mode_));
 
   return no_macro_code;
 }

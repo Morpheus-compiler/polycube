@@ -1,0 +1,27 @@
+name: Polycube Build
+
+on: push
+
+env:
+  BUILD_TYPE: Debug
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ssh-key: ${{ secrets.BCC_MODULE_PULL_CONTENT_KEY }}
+        submodules: 'recursive'
+    - name: System info
+      run: |
+        uname -a
+    - name: Configure and Build
+      run: |
+        chmod +x "${GITHUB_WORKSPACE}/scripts/install.sh"
+        ${GITHUB_WORKSPACE}/scripts/install.sh
+      

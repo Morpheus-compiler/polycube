@@ -128,6 +128,10 @@ Response ListResource::WriteValue(const std::string &cube_name,
     return update_entry_handler_(cube_name.data(), key_params.data(),
                                  key_params.size(), value.dump().data());
   }
+
+  char msg[] = "Operation not supported";
+  Response res = { ErrorTag::kOperationNotSupported, msg };
+  return res;
 }
 
 Response ListResource::DeleteValue(const std::string &cube_name,
@@ -153,6 +157,10 @@ Response ListResource::WriteWhole(const std::string &cube_name,
     return update_whole_handler_(cube_name.data(), key_params.data(),
                                  key_params.size(), value.dump().data());
   }
+
+  char msg[] = "Operation not supported";
+  Response res = { ErrorTag::kOperationNotSupported, msg };
+  return res;
 }
 
 Response ListResource::DeleteWhole(const std::string &cube_name,

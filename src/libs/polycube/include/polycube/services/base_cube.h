@@ -41,7 +41,7 @@ class BaseCube {
  public:
   BaseCube(const nlohmann::json &conf,
            const std::vector<std::string> &ingress_code,
-           const std::vector<std::string> &egress_code);
+           const std::vector<std::string> &egress_code, const std::vector<std::string> &cflags);
   virtual ~BaseCube();
 
   // TODO: implement move constructor, forbid copy and asignment
@@ -54,10 +54,14 @@ class BaseCube {
 
   // Accessors for tables
   RawTable get_raw_table(const std::string &table_name, int index = 0,
-                         ProgramType type = ProgramType::INGRESS);
+                         ProgramType type = ProgramType::INGRESS);           
 
   RawQueueStackTable get_raw_queuestack_table(const std::string &table_name, int index = 0,
                                               ProgramType type = ProgramType::INGRESS);
+
+  MapInMapTable get_map_in_map_table(const std::string &table_name, int index = 0,
+                                     ProgramType type = ProgramType::INGRESS);
+
   template <class ValueType>
   ArrayTable<ValueType> get_array_table(
       const std::string &table_name, int index = 0,
@@ -78,7 +82,7 @@ class BaseCube {
   template <class ValueType>
   QueueStackTable<ValueType> get_queuestack_table(
       const std::string &table_name, int index = 0,
-      ProgramType type = ProgramType::INGRESS);
+      ProgramType type = ProgramType::INGRESS);   
 
   const ebpf::TableDesc &get_table_desc(const std::string &table_name, int index,
                                      ProgramType type);
@@ -87,6 +91,9 @@ class BaseCube {
 
   void set_log_level(LogLevel level);
   LogLevel get_log_level() const;
+
+  void set_cflags(const std::vector<std::string> &cflags);
+  const std::vector<std::string> &get_cflags();
 
   const Guid &get_uuid() const;
   const std::string get_name() const;
@@ -102,6 +109,8 @@ class BaseCube {
   // The code generation depends on this function, that's the reason why
   // this uses a different naming convention
   const std::string getName() const;
+
+  const bool get_dyn_opt_enabled() const;
 
  protected:
   int get_table_fd(const std::string &table_name, int index, ProgramType type);

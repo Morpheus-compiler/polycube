@@ -79,6 +79,10 @@ Response Service::WriteValue(const std::string &cube_name,
   case Endpoint::Operation::kUpdate:
     return update_handler_(cube_name.data(), nullptr, 0, value.dump().data());
   }
+
+  char msg[] = "Operation not supported";
+  Response res = { ErrorTag::kOperationNotSupported, msg };
+  return res;
 }
 
 Response Service::DeleteValue(const std::string &cube_name,

@@ -21,6 +21,8 @@
 #include <iterator>
 #include <random>
 #include <sstream>
+#include <string>
+#include <regex>
 
 #include <arpa/inet.h>
 
@@ -35,6 +37,7 @@ namespace utils {
 
 // new set of functions
 
+// NBO is for Network Byte Order (I would have preferred BE - Big Endian)
 uint32_t ip_string_to_nbo_uint(const std::string &ip) {
   unsigned char a[4];
   int last = -1;
@@ -78,6 +81,47 @@ std::string nbo_uint_to_mac_string(uint64_t mac) {
   std::sprintf(str, "%02x:%02x:%02x:%02x:%02x:%02x", a[0], a[1], a[2], a[3],
                a[4], a[5]);
   return std::string(str);
+}
+
+std::vector<uint8_t> mac_string_to_uint_vector(const std::string &mac) {
+  uint8_t a[6];
+  int last = -1;
+  int rc = sscanf(mac.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%n", a + 0, a + 1,
+                  a + 2, a + 3, a + 4, a+ 5, &last);
+  if (rc != 6 || mac.size() != last) {
+    throw std::runtime_error("invalid mac address format " + mac);
+  }
+
+  std::vector<uint8_t> vect(6);
+  vect.assign(a, a + 6);
+  return vect;
+}
+
+std::string uint_vector_to_mac_string(std::vector<uint8_t> mac) {
+  if (mac.size() != 6) {
+    throw std::runtime_error("invalid mac address format ");
+  }
+
+  char str[19];
+  std::sprintf(str, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], 
+               mac[3], mac[4], mac[5]);
+
+  return std::string(str);
+}
+
+std::vector<std::string> split(std::string s, std::string delimiter) {
+  size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+  std::string token;
+  std::vector<std::string> res;
+
+  while ((pos_end = s.find (delimiter, pos_start)) != std::string::npos) {
+      token = s.substr (pos_start, pos_end - pos_start);
+      pos_start = pos_end + delim_len;
+      res.push_back (token);
+  }
+
+  res.push_back (s.substr (pos_start));
+  return res;
 }
 
 // legacy
@@ -291,6 +335,18 @@ void split_ip_and_prefix(const std::string &ip_and_prefix,
        info.push_back(each));
   ip_address = info[0];
   netmask = get_netmask_from_prefixlength(std::atoi(info[1].c_str()));
+}
+
+// used for replace strings in datapath code
+void replaceAll(std::string &str, const std::string &from, const std::string &to) {
+  if (from.empty())
+    return;
+  size_t start_pos = 0;
+  while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    str.replace(start_pos, from.length(), to);
+    start_pos += to.length();  // In case 'to' contains 'from', like replacing
+                               // 'x' with 'yx'
+  }
 }
 
 }  // namespace utils

@@ -1,0 +1,204 @@
+module katran {
+  yang-version 1.1;
+  namespace "http://polycube.network/katran";
+  prefix "katran";
+
+  import polycube-base { prefix "polycube-base"; }
+  import polycube-standard-base { prefix "polycube-standard-base"; }
+
+  import ietf-inet-types { prefix "inet"; }
+  import ietf-yang-types { prefix "yang"; }
+
+  organization "Polycube open source project";
+  description "YANG data model for the Polycube version of the Facebook Katran Load Balancer";
+
+  polycube-base:service-description "Katran LoadBalancer";
+  polycube-base:service-version "1.0.0";
+  polycube-base:service-name "katran";
+  polycube-base:service-min-kernel-version "5.1.0";
+
+  uses "polycube-standard-base:standard-base-yang-module";
+
+  grouping stats {
+    leaf v1 {
+      config false;
+      type uint64;
+      description "V1 Stats";
+    }
+    leaf v2 {
+      config false;
+      type uint64;
+      description "V2 Stats";
+    }
+  }
+  container generalStats {
+    config false;
+    polycube-base:init-only-config;
+    uses katran:stats;
+    
+    action getVipStats {
+      description "Get statistics about Vip";
+      input {
+        leaf address {
+          type inet:ipv4-address;
+          mandatory true;
+          description "Virtual IP (vip) of the service where clients connect to";
+        }
+        leaf port {
+          type inet:port-number;
+          description "Port of the virtual server where clients connect to (this value is ignored in case of ICMP)";
+          mandatory true;
+          polycube-base:cli-example "80";
+        }
+        leaf proto {
+          type enumeration {
+              enum ICMP;
+              enum TCP;
+              enum UDP;
+              enum ALL;
+          }
+          mandatory true;
+          description "Upper-layer protocol associated with a loadbalancing service instance. 'ALL' creates an entry for all the supported protocols";
+        }
+      }
+      output {
+        uses katran:stats;
+      }
+    }
+
+
+    action getLruStats {
+      description "Get statistics about LRU hits";
+      output {
+        uses katran:stats;
+      }
+    }
+
+    action getLruMissStats {
+      description "Get statistics about LRU miss";
+      output {
+        uses katran:stats;
+      }
+    }
+
+    action getLruFallbackStats {
+      description "Get statistics about LRU fallback";
+      output {
+        uses katran:stats;
+      }
+    }
+
+    action getIcmpTooBigStats {
+      description "Get statistics about ICMP too big messages";
+      output {
+        uses katran:stats;
+      }
+    }
+  }
+
+  leaf defaultMac {
+    type yang:mac-address;
+    mandatory true;
+    description "mac address of default router. katran 'offloads' forwarding to the top of the rack switch (by simply sending everything to it by default).";
+    polycube-base:cli-example "C5:13:2D:36:27:9B";
+  }
+
+  leaf enableHc {
+    type boolean;
+    description "Flag to indicate if healthchecking forwarding plane should be enabled or not.";
+    default true;
+  }
+
+  leaf maxVips{
+    type uint32;
+    description "Maximum number of VIPs supported by katran. It must be in sync with configuration of forwarding plane";
+    default 512;
+  }
+
+  leaf maxReals {
+    type uint32;
+    description "Maximum number of Real servers. It must be in sync w/ configuration of forwarding plane.";
+    default 4096;
+  }
+
+  leaf chRingSize {
+    type uint32;
+    description "Maximum number of Real servers. It must be in sync w/ configuration of forwarding plane.";
+    default 65537;
+  }
+
+  leaf forwardingCores {
+    type string;
+    description "ID of cpu cores which are responsible for the packet forwarding";
+    default "0";
+  }
+
+  leaf numaNodes {
+    type string;
+    description "ID of the numa node associated to the forwarding cores";
+  }
+
+  leaf lruSize {
+    type uint64;
+    description "The size of connection table (number of flows which we are going to track)";
+    default 10000;
+  }
+
+  list vip {
+    key "address port proto";
+    description "Services (i.e., virtual ip:protocol:port) exported to the client";
+
+    leaf address {
+      type inet:ipv4-address;
+      description "Virtual IP (vip) of the service where clients connect to";
+      polycube-base:cli-example "130.192.100.12";
+    }
+
+    leaf port {
+      type inet:port-number;
+      description "Port of the virtual server where clients connect to (this value is ignored in case of ICMP)";
+      polycube-base:cli-example "80";
+    }
+
+    leaf proto {
+      type enumeration {
+          enum ICMP;
+          enum TCP;
+          enum UDP;
+          enum ALL;
+      }
+      mandatory true;
+      description "Upper-layer protocol associated with a loadbalancing service instance. 'ALL' creates an entry for all the supported protocols";
+    }
+
+    leaf flags {
+      type uint32;
+      description "Flags used in the VIP";
+      default 0;
+    }
+
+    list real {
+      key "ip";
+      description "Pool of backend servers that actually serve requests";
+
+      leaf ip {
+        type inet:ipv4-address;
+        description "IP address of the backend server of the pool";
+        polycube-base:cli-example "10.244.1.23";
+      }
+
+      leaf weight {
+        type uint16;
+        description "Weight of the backend in the pool";
+        polycube-base:cli-example "1";
+        default 1;
+      }
+
+      leaf flags {
+        type uint32;
+        description "Flags used in the Reals";
+        default 0;
+      }
+    }
+  }
+}

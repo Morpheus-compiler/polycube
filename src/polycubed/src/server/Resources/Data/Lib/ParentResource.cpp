@@ -110,6 +110,10 @@ Response ParentResource::WriteValue(const std::string &cube_name,
     return update_handler_(cube_name.data(), key_params.data(),
                            key_params.size(), value.dump().data());
   }
+
+  char msg[] = "Operation not supported";
+  Response res = { ErrorTag::kOperationNotSupported, msg };
+  return res;
 }
 
 Response ParentResource::DeleteValue(const std::string &cube_name,

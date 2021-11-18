@@ -31,7 +31,7 @@ template <class PortType>
 class Cube : public BaseCube {
  public:
   Cube(const nlohmann::json &conf, const std::vector<std::string> &ingress_code,
-       const std::vector<std::string> &egress_code);
+       const std::vector<std::string> &egress_code, const std::vector<std::string> &cflags = {});
   virtual ~Cube();
 
   template <class PortConfigType>
@@ -63,8 +63,9 @@ class Cube : public BaseCube {
 template <class PortType>
 Cube<PortType>::Cube(const nlohmann::json &conf,
                      const std::vector<std::string> &ingress_code,
-                     const std::vector<std::string> &egress_code)
-    : BaseCube(conf, ingress_code, egress_code) {
+                     const std::vector<std::string> &egress_code,
+                     const std::vector<std::string> &cflags)
+    : BaseCube(conf, ingress_code, egress_code, cflags) {
   // TODO: move to function
   handle_packet_in = [&](const PacketIn *md,
                          const std::vector<uint8_t> &packet) -> void {
@@ -88,7 +89,7 @@ Cube<PortType>::Cube(const nlohmann::json &conf,
   cube_ = factory_->create_cube(
       conf, ingress_code, egress_code, handle_log_msg,
       std::bind(&Cube::set_control_plane_log_level, this, std::placeholders::_1),
-      handle_packet_in);
+      cflags, handle_packet_in);
   // TODO: where to keep this reference?, keep a double reference?
   BaseCube::cube_ = cube_;
 }

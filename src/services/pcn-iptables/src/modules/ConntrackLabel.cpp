@@ -27,7 +27,7 @@ Iptables::ConntrackLabel::ConntrackLabel(const int &index, Iptables &outer,
   load();
 }
 
-Iptables::ConntrackLabel::~ConntrackLabel() {}
+Iptables::ConntrackLabel::~ConntrackLabel() = default;
 
 std::vector<std::pair<ct_k, ct_v>> Iptables::ConntrackLabel::getMap() {
   auto table = iptables_.get_hash_table<ct_k, ct_v>("connections", index_,
@@ -161,6 +161,9 @@ std::string Iptables::ConntrackLabel::getCode() {
              std::to_string(iptables_.conntrack_mode_forward_));
   replaceAll(no_macro_code, "_CONNTRACK_MODE_OUTPUT",
              std::to_string(iptables_.conntrack_mode_output_));
+
+  replaceAll(no_macro_code, "_CONNTRACK_MAIN_MODE",
+             std::to_string(iptables_.conntrack_mode_));
 
   if (program_type_ == ProgramType::INGRESS) {
     replaceAll(no_macro_code, "call_bpf_program", "call_ingress_program");

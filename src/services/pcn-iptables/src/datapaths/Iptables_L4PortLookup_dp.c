@@ -57,7 +57,8 @@ static __always_inline struct elements *getShared() {
   return sharedEle.lookup(&key);
 }
 
-BPF_HASH(_TYPEPorts_DIRECTION, uint16_t, struct elements);
+BPF_TABLE_RO("hash", uint16_t, struct elements, _TYPEPorts_DIRECTION, 65535, 1);
+//BPF_HASH(_TYPEPorts_DIRECTION, uint16_t, struct elements);
 static __always_inline struct elements *getBitVect(uint16_t *key) {
   return _TYPEPorts_DIRECTION.lookup(key);
 }
@@ -65,6 +66,22 @@ static __always_inline struct elements *getBitVect(uint16_t *key) {
 
 BPF_TABLE("extern", int, u64, pkts_default__DIRECTION, 1);
 BPF_TABLE("extern", int, u64, bytes_default__DIRECTION, 1);
+BPF_TABLE("extern", int, u64, default_action__DIRECTION, 1);
+
+static __always_inline int applyDefaultAction(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action__DIRECTION.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
+
 static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
   u64 *value;
   int zero = 0;
@@ -80,14 +97,10 @@ static __always_inline void incrementDefaultCounters_DIRECTION(u32 bytes) {
 }
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-#if _WILDCARD_RULE
-  u64 wildcard_ele[_MAXRULES] = _WILDCARD_BITVECTOR;
-#endif
-
-/*The struct elements and the lookup table are defined only if _NR_ELEMENTS>0,
- * so
- * this code has to be used only in this case.*/
-#if _NR_ELEMENTS > 0
+  /*
+   * The struct elements and the lookup table are defined only if _NR_ELEMENTS>0,
+   * so this code has to be used only in this case.
+   */
   int key = 0;
   struct packetHeaders *pkt = getPacket();
   if (pkt == NULL) {
@@ -97,11 +110,11 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 
   uint16_t _TYPEPort = 0;
   if (pkt->l4proto != IPPROTO_TCP && pkt->l4proto != IPPROTO_UDP) {
-    pcn_log(ctx, LOG_DEBUG, "Code _TYPEPort _DIRECTION ignoring packet. ");
+    pcn_log(ctx, LOG_DEBUG, "[L4_TYPEPortLookup] Code _TYPEPort _DIRECTION ignoring packet. ");
     call_bpf_program(ctx, _NEXT_HOP_1);
     return RX_DROP;
   } else {
-    pcn_log(ctx, LOG_DEBUG, "Code _TYPEPort _DIRECTION receiving packet. ");
+    pcn_log(ctx, LOG_DEBUG, "[L4_TYPEPortLookup] Code _TYPEPort _DIRECTION receiving packet. ");
     // var containing the port, locally stored
     _TYPEPort = pkt->_TYPEPort;
   }
@@ -121,70 +134,40 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
   if (result == NULL) {
     /*Can't happen. The PERCPU is preallocated.*/
     return RX_DROP;
-  } else {
-    struct elements *ele = getBitVect(&_TYPEPort);
+  } 
+  
+  struct elements *ele = getBitVect(&_TYPEPort);
 
+  if (ele == NULL) {
+    // if lookup with port fails, we have to
+    // a. verify if we have a wildcard key (0)
+    // b. if so, use to bitvector from wildcard key
+    _TYPEPort = 0;
+    pcn_log(ctx, LOG_DEBUG, "[L4_TYPEPortLookup] +WILDCARD RULE+");
+    ele = getBitVect(&_TYPEPort);
     if (ele == NULL) {
-// if lookup with port fails, we have to
-// a. verify if we have a wildcard key (0)
-// b. if so, use to bitvector from wildcard key
-
-#if _WILDCARD_RULE
-      pcn_log(ctx, LOG_DEBUG, "+WILDCARD RULE+");
-      goto WILDCARD;
-#else
-      pcn_log(ctx, LOG_DEBUG, "No match. ");
+      pcn_log(ctx, LOG_DEBUG, "[L4_TYPEPortLookup] No match. ");
       incrementDefaultCounters_DIRECTION(md->packet_len);
-      _DEFAULTACTION
-#endif
+      return applyDefaultAction(ctx);
     }
+  }
 
-/*#pragma unroll does not accept a loop with a single iteration, so we need to
-* distinguish cases to avoid a verifier error.*/
-#if _NR_ELEMENTS == 1
-    (result->bits)[0] = (ele->bits)[0] & (result->bits)[0];
-    if (result->bits[0] != 0)
+  int i = 0;
+  for (i = 0; i < _NR_ELEMENTS; ++i) {
+    (result->bits)[i] = (result->bits)[i] & (ele->bits)[i];
+    if (result->bits[i] != 0)
       isAllZero = false;
-    goto NEXT;
-
-#if _WILDCARD_RULE
-  WILDCARD:;
-    (result->bits)[0] = wildcard_ele[0] & (result->bits)[0];
-    if (result->bits[0] != 0)
-      isAllZero = false;
-#endif
-#else
-    int i = 0;
-#pragma unroll
-    for (i = 0; i < _NR_ELEMENTS; ++i) {
-      (result->bits)[i] = (result->bits)[i] & (ele->bits)[i];
-      if (result->bits[i] != 0)
-        isAllZero = false;
-    }
-    goto NEXT;
-#if _WILDCARD_RULE
-  WILDCARD:;
-#pragma unroll
-    for (i = 0; i < _NR_ELEMENTS; ++i) {
-      (result->bits)[i] = wildcard_ele[i] & (result->bits)[i];
-      if (result->bits[i] != 0)
-        isAllZero = false;
-    }
-#endif
-#endif
-  }  // if result == NULL
+  }
+  goto NEXT;
 
 NEXT:;
   if (isAllZero) {
     pcn_log(ctx, LOG_DEBUG,
-            "Bitvector is all zero. Break pipeline for _TYPEPort _DIRECTION");
+            "[L4_TYPEPortLookup] Bitvector is all zero. Break pipeline for _TYPEPort _DIRECTION");
     incrementDefaultCounters_DIRECTION(md->packet_len);
-    _DEFAULTACTION
+    return applyDefaultAction(ctx);
   }
   call_bpf_program(ctx, _NEXT_HOP_1);
-#else
-  return RX_DROP;
-#endif
 
   return RX_DROP;
 }

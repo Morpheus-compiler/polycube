@@ -139,6 +139,8 @@ static __always_inline uint64_t *time_get_ns() {
 }
 
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
+  pcn_log(ctx, LOG_DEBUG, "[ConntrackTableUpdate] Received packet");
+  pcn_log(ctx, LOG_DEBUG, "[ConntrackTableUpdate] Conntrack Mode: _CONNTRACK_MAIN_MODE");
 // Conntrack DISABLED
 pcn_log(ctx, LOG_DEBUG, "Conntrack Mode: _CONNTRACK_MAIN_MODE");
 #if _CONNTRACK_MAIN_MODE == 0
@@ -205,7 +207,7 @@ pcn_log(ctx, LOG_DEBUG, "Conntrack Mode: _CONNTRACK_MAIN_MODE");
   timestamp = time_get_ns();
 
   if (timestamp == NULL) {
-    pcn_log(ctx, LOG_DEBUG, "[TableUpdate] timestamp NULL. ret DROP ");
+    pcn_log(ctx, LOG_DEBUG, "[ConntrackTableUpdate] timestamp NULL. ret DROP ");
     return RX_DROP;
   }
 
@@ -552,7 +554,7 @@ pcn_log(ctx, LOG_DEBUG, "Conntrack Mode: _CONNTRACK_MAIN_MODE");
       goto forward_action;
     } else {
       // Validation failed
-      pcn_log(ctx, LOG_DEBUG, "Validation failed %d", pkt->flags);
+      pcn_log(ctx, LOG_DEBUG, "[ConntrackTableUpdate] Validation failed %d", pkt->flags);
       goto forward_action;
     }
   }
@@ -657,9 +659,30 @@ pcn_log(ctx, LOG_DEBUG, "Conntrack Mode: _CONNTRACK_MAIN_MODE");
 
 forward_action:;
 
+#if _SIMPLE_FORWARD_ENABLED
+
+  #if _INGRESS_LOGIC
+  if (md->in_port == _INDEX_FIRST_INTERFACE) {
+    pcn_log(ctx, LOG_TRACE, "[ConntrackTableUpdate] Redirect packet to ifindex: _IFINDEX_SECOND_INTERFACE");
+    // return tx_port.redirect_map(_IFINDEX_SECOND_INTERFACE, 0);
+    return bpf_redirect(_IFINDEX_SECOND_INTERFACE, 0);
+  } else {
+    pcn_log(ctx, LOG_TRACE, "[ConntrackTableUpdate] Redirect packet to ifindex: _IFINDEX_FIRST_INTERFACE");
+    return bpf_redirect(_IFINDEX_FIRST_INTERFACE, 0);
+    // return tx_port.redirect_map(_IFINDEX_FIRST_INTERFACE, 0);
+  }
+  #endif
+
+  #if _EGRESS_LOGIC
+  pcn_log(ctx, LOG_TRACE,
+          "[ConntrackTableUpdate] EGRESS: ACCEPT packet, after save in session "
+          "table");
+  return RX_OK;
+  #endif
+
 // FIB_LOOKUP_ENABLED is replaced a runtime by control plane
 // true: if kernel >= 4.19.0 && XDP mode
-#if _FIB_LOOKUP_ENABLED
+#elif _FIB_LOOKUP_ENABLED
 
 #if _INGRESS_LOGIC
 
@@ -726,13 +749,14 @@ forward_action:;
 
     pcn_log(
         ctx, LOG_TRACE,
-        "Conntrack Table Update +bpf_fib_lookup+ redirect pkt to ifindex %d ",
+        "[ConntrackTableUpdate] +bpf_fib_lookup+ redirect pkt to ifindex %d ",
         fib_params.ifindex);
-    return tx_port.redirect_map(fib_params.ifindex, 0);
+    // return tx_port.redirect_map(fib_params.ifindex, 0);
+    return bpf_redirect(fib_params.ifindex, 0);
 
   } else {
     pcn_log(ctx, LOG_TRACE,
-            "Conntrack Table Update INGRESS: ACCEPT packet, after save in "
+            "[ConntrackTableUpdate] INGRESS: ACCEPT packet, after save in "
             "session table");
     return RX_OK;
   }
@@ -740,14 +764,14 @@ forward_action:;
 
 #if _EGRESS_LOGIC
   pcn_log(ctx, LOG_TRACE,
-          "Conntrack Table Update EGRESS: ACCEPT packet, after save in session "
+          "[ConntrackTableUpdate] EGRESS: ACCEPT packet, after save in session "
           "table");
   return RX_OK;
 #endif
 
 #else
   pcn_log(ctx, LOG_TRACE,
-          "Conntrack Table Update: ACCEPT packet, after save in session table");
+          "[ConntrackTableUpdate] ACCEPT packet, after save in session table");
   return RX_OK;
 #endif
 }

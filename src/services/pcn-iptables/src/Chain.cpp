@@ -17,7 +17,16 @@
 #include "Chain.h"
 #include "Iptables.h"
 
-Chain::Chain(Iptables &parent, const ChainJsonObject &conf) : parent_(parent) {
+#define ENABLE_CONNTRACK_MATCH 1
+#define ENABLE_IP_SRC_MATCH 1
+#define ENABLE_IP_DST_MATCH 1
+#define ENABLE_PORT_SRC_MATCH 1
+#define ENABLE_PORT_DST_MATCH 1
+#define ENABLE_PROTO_MATCH 1
+#define ENABLE_INTERFACE_MATCH 1
+#define ENABLE_FLAGS_MATCH 1
+
+Chain::Chain(Iptables &parent, const ChainJsonObject &conf) : ChainBase(parent) {
   logger()->trace("Creating Chain instance");
   update(conf);
 }
@@ -52,24 +61,6 @@ void Chain::update(const ChainJsonObject &conf) {
       m->update(i);
     }
   }
-}
-
-ChainJsonObject Chain::toJsonObject() {
-  ChainJsonObject conf;
-
-  conf.setDefault(getDefault());
-
-  for (auto &i : getStatsList()) {
-    conf.addChainStats(i->toJsonObject());
-  }
-
-  conf.setName(getName());
-
-  for (auto &i : getRuleList()) {
-    conf.addChainRule(i->toJsonObject());
-  }
-
-  return conf;
 }
 
 ActionEnum Chain::getDefault() {
@@ -314,7 +305,7 @@ ChainInsertOutputJsonObject Chain::insert(ChainInsertInputJsonObject input) {
   return result;
 }
 
-void Chain::deletes(ChainDeleteInputJsonObject input) {
+void Chain::remove(ChainRemoveInputJsonObject input) {
   ChainRuleJsonObject conf;
 
   if (input.conntrackIsSet()) {
@@ -409,10 +400,6 @@ ChainApplyRulesOutputJsonObject Chain::applyRules() {
   return result;
 }
 
-std::shared_ptr<spdlog::logger> Chain::logger() {
-  return parent_.logger();
-}
-
 uint32_t Chain::getNrRules() {
   /*
    * ChainRule::get returns only the valid rules to avoid segmentation faults
@@ -433,12 +420,35 @@ void Chain::updateChain() {
                  parent_.get_name(),
                  ChainJsonObject::ChainNameEnum_to_string(name), rules_.size());
 
+  uint8_t chainfwd;
+  uint8_t chainparser;
+  uint8_t chainselector;
+  ChainNameEnum chainnameenum;
+
+  if (getName() == ChainNameEnum::OUTPUT) {
+    chainfwd = ModulesConstants::CHAINFORWARDER_EGRESS;
+    chainparser = ModulesConstants::PARSER_EGRESS;
+    chainselector = ModulesConstants::CHAINSELECTOR_EGRESS;
+    chainnameenum = ChainNameEnum::INVALID_EGRESS;
+  } else {
+    chainfwd = ModulesConstants::CHAINFORWARDER_INGRESS;
+    chainparser = ModulesConstants::PARSER_INGRESS;
+    chainselector = ModulesConstants::CHAINSELECTOR_INGRESS;
+    chainnameenum = ChainNameEnum::INVALID_INGRESS;
+  }
+
+  if (rules_.empty()) {
+    auto chainParserProgram = std::dynamic_pointer_cast<Iptables::Parser>(parent_.programs_[std::make_pair(chainparser, chainnameenum)]);
+    chainParserProgram->updateIsTableEmpty(getName(), rules_);
+    return;
+  }
+
   auto start = std::chrono::high_resolution_clock::now();
 
   // Programs indexes
   // Look at defines.h
 
-  int index;
+  int index = 0;
   if (name == ChainNameEnum::INPUT) {
     // chainNumber (0/1) switching each time
     index = ModulesConstants::NR_INITIAL_MODULES +
@@ -464,16 +474,6 @@ void Chain::updateChain() {
   std::map<std::pair<uint8_t, ChainNameEnum>,
            std::shared_ptr<Iptables::Program>>
       newProgramsChain;
-
-  // containing various bitvector(s)
-  std::map<uint8_t, std::vector<uint64_t>> conntrack_map;
-  std::map<struct IpAddr, std::vector<uint64_t>> ipsrc_map;
-  std::map<struct IpAddr, std::vector<uint64_t>> ipdst_map;
-  std::map<uint16_t, std::vector<uint64_t>> portsrc_map;
-  std::map<uint16_t, std::vector<uint64_t>> portdst_map;
-  std::map<uint16_t, std::vector<uint64_t>> interface_map;
-  std::map<int, std::vector<uint64_t>> protocol_map;
-  std::vector<std::vector<uint64_t>> flags_map;
 
   std::map<struct HorusRule, struct HorusValue> horus;
 
@@ -597,256 +597,270 @@ void Chain::updateChain() {
   // if no wildcard is present, we can early break the pipeline.
   // so we put modules with _break flags, before the others in order
   // to maximize probability to early break the pipeline.
-  bool conntrack_break = conntrackFromRulesToMap(conntrack_map, getRuleList());
-  bool ipsrc_break = ipFromRulesToMap(SOURCE_TYPE, ipsrc_map, getRuleList());
-  bool ipdst_break =
-      ipFromRulesToMap(DESTINATION_TYPE, ipdst_map, getRuleList());
-  bool protocol_break =
-      transportProtoFromRulesToMap(protocol_map, getRuleList());
-  bool portsrc_break =
-      portFromRulesToMap(SOURCE_TYPE, portsrc_map, getRuleList());
-  bool portdst_break =
-      portFromRulesToMap(DESTINATION_TYPE, portdst_map, getRuleList());
-  bool interface_break = interfaceFromRulesToMap(
-      (name == ChainNameEnum::OUTPUT) ? OUT_TYPE : IN_TYPE, interface_map,
-      getRuleList(), parent_);
-  bool flags_break = flagsFromRulesToMap(flags_map, getRuleList());
-
-  logger()->debug(
-      "Early break of pipeline conntrack:{0} ipsrc:{1} ipdst:{2} protocol:{3} "
-      "portstc:{4} portdst:{5} interface:{6} flags:{7} ",
-      conntrack_break, ipsrc_break, ipdst_break, protocol_break, portsrc_break,
-      portdst_break, interface_break, flags_break);
 
   // first loop iteration pushes program that could early break the pipeline
   // second iteration, push others programs
 
   bool second = false;
 
-  for (int j = 0; j < 2; j++) {
-    if (j == 1)
-      second = true;
-
-    // Looping through conntrack
-    if (!conntrack_map.empty() && conntrack_break ^ second) {
-      // At least one rule requires a matching on conntrack, so it can be
-      // injected.
-      if (!parent_.isContrackActive()) {
-        logger()->error(
-            "[{0}] Conntrack is not active, please remember to activate it.",
-            parent_.getName());
-      }
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::CONNTRACKMATCH, name),
-              new Iptables::ConntrackMatch(index, name, this->parent_)));
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::ConntrackMatch>(
-          newProgramsChain[std::make_pair(ModulesConstants::CONNTRACKMATCH,
-                                          name)])
-          ->updateMap(conntrack_map);
-
-      // This check is not really needed here, it will always be the first
-      // module
-      // to be injected
-      if (index == startingIndex) {
-        firstProgramLoaded = newProgramsChain[std::make_pair(
-            ModulesConstants::CONNTRACKMATCH, name)];
-      }
-      logger()->trace("Conntrack index:{0}", index);
-      ++index;
+  // Looping through conntrack
+#if ENABLE_CONNTRACK_MATCH
+  {
+    std::map<uint8_t, std::vector<uint64_t>> conntrack_map;
+    bool conntrack_break = conntrackFromRulesToMap(conntrack_map, getRuleList());
+    logger()->debug("Conntrack rules calculated. Early break: {0}", conntrack_break);
+    // At least one rule requires a matching on conntrack, so it can be
+    // injected.
+    if (!parent_.isContrackActive()) {
+      logger()->error(
+          "[{0}] Conntrack is not active, please remember to activate it.",
+          parent_.getName());
     }
-    // conntrack_map.clear();
-    // Done looping through conntrack
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::CONNTRACKMATCH, name),
+            new Iptables::ConntrackMatch(index, name, this->parent_)));
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::ConntrackMatch>(
+        newProgramsChain[std::make_pair(ModulesConstants::CONNTRACKMATCH,
+                                        name)])
+        ->updateMap(conntrack_map);
 
-    // Looping through IP source
-    // utils.h
-
-    // Maps to populate
-    // SRC/DST
-    // map to populate
-    // rules, as received by API object
-    if (!ipsrc_map.empty() && (ipsrc_break ^ second)) {
-      // At least one rule requires a matching on ipsource, so inject
-      // the module on the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::IPSOURCE, name),
-              // also injecting porgram
-              new Iptables::IpLookup(index, name, SOURCE_TYPE, this->parent_)));
-      // If this is the first module, adjust parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded =
-            newProgramsChain[std::make_pair(ModulesConstants::IPSOURCE, name)];
-      }
-      logger()->trace("IP Src index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::IpLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::IPSOURCE, name)])
-          ->updateMap(ipsrc_map);
+    // This check is not really needed here, it will always be the first
+    // module
+    // to be injected
+    if (index == startingIndex) {
+      firstProgramLoaded = newProgramsChain[std::make_pair(
+          ModulesConstants::CONNTRACKMATCH, name)];
     }
-    // ipsrc_map.clear();
-    // Done looping through IP source
-
-    // Looping through IP destination
-    if (!ipdst_map.empty() && ipdst_break ^ second) {
-      // At least one rule requires a matching on source ip, so inject the
-      // module on the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::IPDESTINATION, name),
-              new Iptables::IpLookup(index, name, DESTINATION_TYPE,
-                                     this->parent_)));
-      // If this is the first module, adjust parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded = newProgramsChain[std::make_pair(
-            ModulesConstants::IPDESTINATION, name)];
-      }
-      logger()->trace("IP Dst index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::IpLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::IPDESTINATION,
-                                          name)])
-          ->updateMap(ipdst_map);
-    }
-    // ipdst_map.clear();
-    // Done looping through IP destination
-
-    // Looping through l4 protocol
-    if (!protocol_map.empty() && protocol_break ^ second) {
-      // At least one rule requires a matching on
-      // source ports, so inject the module
-      // on the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::L4PROTO, name),
-              new Iptables::L4ProtocolLookup(index, name, this->parent_)));
-
-      // If this is the first module, adjust parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded =
-            newProgramsChain[std::make_pair(ModulesConstants::L4PROTO, name)];
-      }
-      logger()->trace("Protocol index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::L4ProtocolLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::L4PROTO, name)])
-          ->updateMap(protocol_map);
-    }
-    // protocol_map.clear();
-    // Done looping through l4 protocol
-
-    // Looping through source port
-    if (!portsrc_map.empty() && portsrc_break ^ second) {
-      // At least one rule requires a matching on  source ports,
-      // so inject the  module  on the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::PORTSOURCE, name),
-              new Iptables::L4PortLookup(index, name, SOURCE_TYPE,
-                                         this->parent_, portsrc_map)));
-
-      // If this is the first module, adjust parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded = newProgramsChain[std::make_pair(
-            ModulesConstants::PORTSOURCE, name)];
-      }
-      logger()->trace("Port Src index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::L4PortLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::PORTSOURCE, name)])
-          ->updateMap(portsrc_map);
-    }
-    // portsrc_map.clear();
-    // Done looping through source port
-
-    // Looping through destination port
-    if (!portdst_map.empty() && portdst_break ^ second) {
-      // At least one rule requires a matching on source ports,
-      // so inject the module  on the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::PORTDESTINATION, name),
-              new Iptables::L4PortLookup(index, name, DESTINATION_TYPE,
-                                         this->parent_, portdst_map)));
-      // If this is the first module, adjust
-      // parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded = newProgramsChain[std::make_pair(
-            ModulesConstants::PORTDESTINATION, name)];
-      }
-      logger()->trace("Port Dst index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::L4PortLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::PORTDESTINATION,
-                                          name)])
-          ->updateMap(portdst_map);
-    }
-    // portdst_map.clear();
-    // Done looping through destination port
-
-    // Looping through interface
-    if (!interface_map.empty() && interface_break ^ second) {
-      // At least one rule requires a matching on interface,
-      // so inject the  module  on the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::INTERFACE, name),
-              new Iptables::InterfaceLookup(
-                  index, name,
-                  (name == ChainNameEnum::OUTPUT) ? OUT_TYPE : IN_TYPE,
-                  this->parent_, interface_map)));
-
-      // If this is the first module, adjust parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded =
-            newProgramsChain[std::make_pair(ModulesConstants::INTERFACE, name)];
-      }
-      logger()->trace("Interface index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::InterfaceLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::INTERFACE, name)])
-          ->updateMap(interface_map);
-    }
-    // Done looping through interface
-
-    // Looping through tcp flags
-    if (!flags_map.empty() && flags_break ^ second) {
-      // At least one rule requires a matching on flags,
-      // so inject the  module in the first available position
-      newProgramsChain.insert(
-          std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
-              std::make_pair(ModulesConstants::TCPFLAGS, name),
-              new Iptables::TcpFlagsLookup(index, name, this->parent_)));
-
-      // If this is the first module, adjust parsing to forward to it.
-      if (index == startingIndex) {
-        firstProgramLoaded =
-            newProgramsChain[std::make_pair(ModulesConstants::TCPFLAGS, name)];
-      }
-      logger()->trace("Flags index:{0}", index);
-      ++index;
-
-      // Now the program is loaded, populate it.
-      std::dynamic_pointer_cast<Iptables::TcpFlagsLookup>(
-          newProgramsChain[std::make_pair(ModulesConstants::TCPFLAGS, name)])
-          ->updateMap(flags_map);
-    }
-    // flags_map.clear();
-    // Done looping through tcp flags
+    logger()->trace("Conntrack index:{0}", index);
+    ++index;
   }
+#endif
+  // conntrack_map.clear();
+  // Done looping through conntrack
+
+  // Looping through IP source
+  // utils.h
+
+  // Maps to populate
+  // SRC/DST
+  // map to populate
+  // rules, as received by API object
+#if ENABLE_IP_SRC_MATCH
+    {
+      std::map<struct IpAddr, std::vector<uint64_t>> ipsrc_map;
+      bool ipsrc_break = ipFromRulesToMap(SOURCE_TYPE, ipsrc_map, getRuleList());
+    // At least one rule requires a matching on ipsource, so inject
+    // the module on the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::IPSOURCE, name),
+            // also injecting porgram
+            new Iptables::IpLookup(index, name, SOURCE_TYPE, this->parent_)));
+    // If this is the first module, adjust parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded =
+          newProgramsChain[std::make_pair(ModulesConstants::IPSOURCE, name)];
+    }
+    logger()->trace("IP Src index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::IpLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::IPSOURCE, name)])
+        ->updateMap(ipsrc_map);
+  }
+#endif
+  // ipsrc_map.clear();
+  // Done looping through IP source
+
+  // Looping through IP destination
+#if ENABLE_IP_DST_MATCH
+    {
+    std::map<struct IpAddr, std::vector<uint64_t>> ipdst_map;
+    bool ipdst_break =
+            ipFromRulesToMap(DESTINATION_TYPE, ipdst_map, getRuleList());
+    // At least one rule requires a matching on source ip, so inject the
+    // module on the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::IPDESTINATION, name),
+            new Iptables::IpLookup(index, name, DESTINATION_TYPE,
+                                    this->parent_)));
+    // If this is the first module, adjust parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded = newProgramsChain[std::make_pair(
+          ModulesConstants::IPDESTINATION, name)];
+    }
+    logger()->trace("IP Dst index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::IpLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::IPDESTINATION,
+                                        name)])
+        ->updateMap(ipdst_map);
+  }
+#endif
+  // ipdst_map.clear();
+  // Done looping through IP destination
+
+  // Looping through l4 protocol
+#if ENABLE_PROTO_MATCH
+  {
+    std::map<int, std::vector<uint64_t>> protocol_map;
+    bool protocol_break =
+            transportProtoFromRulesToMap(protocol_map, getRuleList());
+    // At least one rule requires a matching on
+    // source ports, so inject the module
+    // on the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::L4PROTO, name),
+            new Iptables::L4ProtocolLookup(index, name, this->parent_)));
+
+    // If this is the first module, adjust parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded =
+          newProgramsChain[std::make_pair(ModulesConstants::L4PROTO, name)];
+    }
+    logger()->trace("Protocol index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::L4ProtocolLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::L4PROTO, name)])
+        ->updateMap(protocol_map);
+  }
+#endif
+  // protocol_map.clear();
+  // Done looping through l4 protocol
+
+  // Looping through source port
+#if ENABLE_PORT_SRC_MATCH
+    {
+    std::map<uint16_t, std::vector<uint64_t>> portsrc_map;
+    bool portsrc_break =
+          portFromRulesToMap(SOURCE_TYPE, portsrc_map, getRuleList());
+    // At least one rule requires a matching on  source ports,
+    // so inject the  module  on the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::PORTSOURCE, name),
+            new Iptables::L4PortLookup(index, name, SOURCE_TYPE,
+                                        this->parent_, portsrc_map)));
+
+    // If this is the first module, adjust parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded = newProgramsChain[std::make_pair(
+          ModulesConstants::PORTSOURCE, name)];
+    }
+    logger()->trace("Port Src index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::L4PortLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::PORTSOURCE, name)])
+        ->updateMap(portsrc_map);
+    }
+#endif
+  // portsrc_map.clear();
+  // Done looping through source port
+
+  // Looping through destination port
+#if ENABLE_PORT_DST_MATCH
+    {
+    std::map<uint16_t, std::vector<uint64_t>> portdst_map;  
+    bool portdst_break =
+            portFromRulesToMap(DESTINATION_TYPE, portdst_map, getRuleList());
+    // At least one rule requires a matching on source ports,
+    // so inject the module  on the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::PORTDESTINATION, name),
+            new Iptables::L4PortLookup(index, name, DESTINATION_TYPE,
+                                        this->parent_, portdst_map)));
+    // If this is the first module, adjust
+    // parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded = newProgramsChain[std::make_pair(
+          ModulesConstants::PORTDESTINATION, name)];
+    }
+    logger()->trace("Port Dst index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::L4PortLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::PORTDESTINATION,
+                                        name)])
+        ->updateMap(portdst_map);
+    }
+#endif
+  // portdst_map.clear();
+  // Done looping through destination port
+
+  // Looping through interface
+#if ENABLE_INTERFACE_MATCH
+    {
+    std::map<uint16_t, std::vector<uint64_t>> interface_map;
+    bool interface_break = interfaceFromRulesToMap(
+          (name == ChainNameEnum::OUTPUT) ? OUT_TYPE : IN_TYPE, interface_map,
+          getRuleList(), parent_);
+    // At least one rule requires a matching on interface,
+    // so inject the  module  on the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::INTERFACE, name),
+            new Iptables::InterfaceLookup(
+                index, name,
+                (name == ChainNameEnum::OUTPUT) ? OUT_TYPE : IN_TYPE,
+                this->parent_, interface_map)));
+
+    // If this is the first module, adjust parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded =
+          newProgramsChain[std::make_pair(ModulesConstants::INTERFACE, name)];
+    }
+    logger()->trace("Interface index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::InterfaceLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::INTERFACE, name)])
+        ->updateMap(interface_map);
+    }
+#endif
+  // Done looping through interface
+
+  // Looping through tcp flags
+#if ENABLE_FLAGS_MATCH
+    {
+    std::vector<std::vector<uint64_t>> flags_map; 
+    bool flags_break = flagsFromRulesToMap(flags_map, getRuleList());
+    // At least one rule requires a matching on flags,
+    // so inject the  module in the first available position
+    newProgramsChain.insert(
+        std::pair<std::pair<uint8_t, ChainNameEnum>, Iptables::Program *>(
+            std::make_pair(ModulesConstants::TCPFLAGS, name),
+            new Iptables::TcpFlagsLookup(index, name, this->parent_)));
+
+    // If this is the first module, adjust parsing to forward to it.
+    if (index == startingIndex) {
+      firstProgramLoaded =
+          newProgramsChain[std::make_pair(ModulesConstants::TCPFLAGS, name)];
+    }
+    logger()->trace("Flags index:{0}", index);
+    ++index;
+
+    // Now the program is loaded, populate it.
+    std::dynamic_pointer_cast<Iptables::TcpFlagsLookup>(
+        newProgramsChain[std::make_pair(ModulesConstants::TCPFLAGS, name)])
+        ->updateMap(flags_map);
+    }
+#endif
+  // flags_map.clear();
+  // Done looping through tcp flags
 
   // Adding bitscan
   newProgramsChain.insert(
@@ -873,23 +887,6 @@ void Chain::updateChain() {
                            ChainRule::ActionEnumToInt(rule->getAction()));
   }
 
-  uint8_t chainfwd;
-  uint8_t chainparser;
-  uint8_t chainselector;
-  ChainNameEnum chainnameenum;
-
-  if (getName() == ChainNameEnum::OUTPUT) {
-    chainfwd = ModulesConstants::CHAINFORWARDER_EGRESS;
-    chainparser = ModulesConstants::PARSER_EGRESS;
-    chainselector = ModulesConstants::CHAINSELECTOR_EGRESS;
-    chainnameenum = ChainNameEnum::INVALID_EGRESS;
-  } else {
-    chainfwd = ModulesConstants::CHAINFORWARDER_INGRESS;
-    chainparser = ModulesConstants::PARSER_INGRESS;
-    chainselector = ModulesConstants::CHAINSELECTOR_INGRESS;
-    chainnameenum = ChainNameEnum::INVALID_INGRESS;
-  }
-
   parent_.programs_[std::make_pair(chainfwd, chainnameenum)]->updateHop(
       1, firstProgramLoaded, name);
 
@@ -898,6 +895,10 @@ void Chain::updateChain() {
   parent_.programs_[std::make_pair(chainselector, chainnameenum)]->reload();
 
   parent_.programs_[std::make_pair(chainparser, chainnameenum)]->reload();
+
+  auto chainParserProgram = std::dynamic_pointer_cast<Iptables::Parser>(parent_.programs_[std::make_pair(chainparser, chainnameenum)]);
+  chainParserProgram->updateIsTableEmpty(getName(), getRuleList());
+  chainParserProgram->updateDefaultActionTable(getName());
 
   // Unload the programs belonging to the old chain.
   // Implicit in destructors
@@ -930,7 +931,7 @@ void Chain::updateChain() {
 
 std::shared_ptr<ChainStats> Chain::getStats(const uint32_t &id) {
   if (rules_.size() < id || !rules_[id]) {
-    throw std::runtime_error("There is no rule " + id);
+    throw std::runtime_error("There is no rule " + std::to_string(id));
   }
 
   auto &counters = counters_;
@@ -997,7 +998,7 @@ void Chain::delStatsList() {
 
 std::shared_ptr<ChainRule> Chain::getRule(const uint32_t &id) {
   if (rules_.size() < id || !rules_[id]) {
-    throw std::runtime_error("There is no rule " + id);
+    throw std::runtime_error("There is no rule " + std::to_string(id));
   }
   return rules_[id];
 }
@@ -1008,8 +1009,6 @@ std::vector<std::shared_ptr<ChainRule>> Chain::getRuleList() {
 
 void Chain::addRule(const uint32_t &id, const ChainRuleJsonObject &conf) {
   auto newRule = std::make_shared<ChainRule>(*this, conf);
-
-  getStatsList();
 
   if (newRule == nullptr) {
     // Totally useless, but it is needed to avoid the compiler making wrong
@@ -1027,6 +1026,7 @@ void Chain::addRule(const uint32_t &id, const ChainRuleJsonObject &conf) {
 
   if (parent_.interactive_) {
     updateChain();
+    getStatsList();
   }
 }
 
@@ -1045,11 +1045,8 @@ void Chain::replaceRule(const uint32_t &id, const ChainRuleJsonObject &conf) {
 
 void Chain::delRule(const uint32_t &id) {
   if (rules_.size() < id || !rules_[id]) {
-    throw std::runtime_error("There is no rule " + id);
+    throw std::runtime_error("There is no rule " + std::to_string(id));
   }
-
-  // Forcing counters update
-  getStatsList();
 
   for (uint32_t i = id; i < rules_.size() - 1; ++i) {
     rules_[i] = rules_[i + 1];
@@ -1066,6 +1063,8 @@ void Chain::delRule(const uint32_t &id) {
 
   if (parent_.interactive_) {
     applyRules();
+    // Forcing counters update
+    getStatsList();
   }
 }
 

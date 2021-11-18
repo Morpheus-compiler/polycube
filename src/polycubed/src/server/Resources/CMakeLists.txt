@@ -1,4 +1,4 @@
-find_package(nlohmann_json 3.5.0 REQUIRED)
+find_package(nlohmann_json 3.10.0 REQUIRED)
 
 add_subdirectory(Body)
 add_subdirectory(Endpoint)

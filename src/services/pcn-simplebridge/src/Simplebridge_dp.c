@@ -34,6 +34,7 @@
 struct fwd_entry {
   u32 timestamp;
   u32 port;
+//  struct bpf_spin_lock lock;
 } __attribute__((packed, aligned(8)));
 
 BPF_TABLE("hash", __be64, struct fwd_entry, fwdtable, 1024);
@@ -59,6 +60,7 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
   struct eth_hdr *eth = data;
+  struct fwd_entry *entry;
 
   if (data + sizeof(*eth) > data_end)
     return RX_DROP;
@@ -72,10 +74,10 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   __be64 src_key = eth->src;
   u32 now = time_get_sec();
 
-  struct fwd_entry *entry = fwdtable.lookup(&src_key);
+  entry = fwdtable.lookup(&src_key);
 
   if (!entry) {
-    struct fwd_entry e;  // used to update the entry in the fdb
+    struct fwd_entry e = {};  // used to update the entry in the fdb
 
     e.timestamp = now;
     e.port = in_ifc;
@@ -83,20 +85,35 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
     fwdtable.update(&src_key, &e);
     pcn_log(ctx, LOG_TRACE, "MAC: %M learned", src_key);
   } else {
+//    bpf_spin_lock(&entry->lock);
     entry->port = in_ifc;
     entry->timestamp = now;
+//    bpf_spin_unlock(&entry->lock);
   }
+
+//  struct fwd_entry e;  // used to update the entry in the fdb
+//
+//  e.timestamp = now;
+//  e.port = in_ifc;
+//
+//  fwdtable.update(&src_key, &e);
 
   // FORWARDING PHASE: select interface(s) to send the packet
   __be64 dst_mac = eth->dst;
+// 100: Non existing port
+  u32 dst_interface = 100;
+  u64 timestamp;
+  
   // lookup in forwarding table fwdtable
   entry = fwdtable.lookup(&dst_mac);
+  
   if (!entry) {
     pcn_log(ctx, LOG_DEBUG, "Entry not found for dst-mac: %M", dst_mac);
     goto DO_FLOODING;
+  } else {
+    dst_interface = entry->port;
+    timestamp = entry->timestamp;
   }
-
-  u64 timestamp = entry->timestamp;
 
   // Check if the entry is still valid (not too old)
   if ((now - timestamp) > FDB_TIMEOUT) {
@@ -108,8 +125,6 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   pcn_log(ctx, LOG_TRACE, "Entry is valid. FORWARDING");
 
 FORWARD:;
-  u32 dst_interface = entry->port;  // workaround for verifier
-
   // HIT in forwarding table
   // redirect packet to dst_interface
 

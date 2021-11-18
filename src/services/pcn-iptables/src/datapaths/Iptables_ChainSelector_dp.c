@@ -58,6 +58,12 @@ BPF_TABLE("extern", int, u64, bytes_default_Input, 1);
 
 BPF_TABLE("extern", int, u64, pkts_default_Forward, 1);
 BPF_TABLE("extern", int, u64, bytes_default_Forward, 1);
+
+BPF_TABLE("extern", int, u64, default_action_Input, 1);
+BPF_TABLE("extern", int, u64, default_action_Forward, 1);
+
+BPF_TABLE("extern", int, u64, input_chain_empty, 1);
+BPF_TABLE("extern", int, u64, forward_chain_empty, 1);
 #endif
 
 #if _EGRESS_LOGIC
@@ -65,6 +71,10 @@ BPF_TABLE("extern", __be32, int, localip, 256);
 
 BPF_TABLE("extern", int, u64, pkts_default_Output, 1);
 BPF_TABLE("extern", int, u64, bytes_default_Output, 1);
+
+BPF_TABLE("extern", int, u64, default_action_Output, 1);
+
+BPF_TABLE("extern", int, u64, output_chain_empty, 1);
 #endif
 
 // This is the percpu array containing the forwarding decision. ChainForwarder
@@ -76,6 +86,11 @@ BPF_TABLE_SHARED("percpu_array", int, int, forwardingDecision, 1);
 #if _EGRESS_LOGIC
 BPF_TABLE("extern", int, int, forwardingDecision, 1);
 #endif
+
+static __always_inline void updateForwardingDecision(int decision) {
+  int key = 0;
+  forwardingDecision.update(&key, &decision);
+}
 
 #if _INGRESS_LOGIC
 static __always_inline void incrementDefaultCountersInput(u32 bytes) {
@@ -105,6 +120,60 @@ static __always_inline void incrementDefaultCountersForward(u32 bytes) {
     *value += bytes;
   }
 }
+
+static __always_inline int applyDefaultActionInput(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action_Input.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    updateForwardingDecision(PASS_LABELING);
+    call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
+
+static __always_inline int applyDefaultActionForward(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action_Forward.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    updateForwardingDecision(PASS_LABELING);
+    call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
+}
+
+static __always_inline bool isInputChainEmpty(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = input_chain_empty.lookup(&zero);
+  if (value && *value == 0) {
+    return false;
+  }
+
+  return true;
+}
+
+static __always_inline bool isForwardChainEmpty(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = forward_chain_empty.lookup(&zero);
+  if (value && *value == 0) {
+    return false;
+  }
+
+  return true;
+}
 #endif
 
 #if _EGRESS_LOGIC
@@ -121,26 +190,40 @@ static __always_inline void incrementDefaultCountersOutput(u32 bytes) {
     *value += bytes;
   }
 }
-#endif
 
-static __always_inline void updateForwardingDecision(int decision) {
-  int key = 0;
-  forwardingDecision.update(&key, &decision);
+static __always_inline int applyDefaultActionOutput(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = default_action_Output.lookup(&zero);
+  if (value && *value == 1) {
+    //Default Action is ACCEPT
+    updateForwardingDecision(PASS_LABELING);
+    call_bpf_program(ctx, _CONNTRACK_LABEL_EGRESS);
+    return RX_DROP;
+  }
+
+  return RX_DROP;
 }
 
+static __always_inline bool isOutputChainEmpty(struct CTXTYPE *ctx) {
+  u64 *value;
+
+  int zero = 0;
+  value = output_chain_empty.lookup(&zero);
+  if (value && *value == 0) {
+    return false;
+  }
+
+  return true;
+}
+#endif
+
 static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "Code ChainSelector receiving packet.");
+  pcn_log(ctx, LOG_DEBUG, "[ChainSelector] Receiving packet.");
 
 // No rules in INPUT and FORWARD chain, and default action is accept
 // let all the traffic to be labeled and pass.
-#if _INGRESS_ALLOWLOGIC
-  pcn_log(ctx, LOG_DEBUG,
-          "INGRESS LOGIC PASS. No rules for INPUT and FORWARD, and default is "
-          "ACCEPT. ");
-  updateForwardingDecision(PASS_LABELING);
-  call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
-#endif
-
   int key = 0;
   struct elements *result;
 
@@ -155,88 +238,84 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 #if _INGRESS_LOGIC
 
   __be32 dstip = pkt->dstIp;
+  goto FORWARD;
   __be32 *ip_matched = localip.lookup(&dstip);
-  // __be32* ip_matched = localip.lookup(&ip->daddr);
+
   if (ip_matched) {
     pcn_log(ctx, LOG_DEBUG,
-            "INGRESS Chain Selector. Dst ip matched. -->INPUT chain. ");
+            "[ChainSelector] INGRESS. Dst ip matched. -->INPUT chain. ");
     goto INPUT;
   } else {
     pcn_log(ctx, LOG_DEBUG,
-            "INGRESS Chain Selector. Dst ip NOT matched. -->FORWARD chain. ");
+            "[ChainSelector] INGRESS. Dst ip NOT matched. -->FORWARD chain. ");
     goto FORWARD;
   }
 
 INPUT:;
-#if _NR_ELEMENTS_INPUT > 0
+  if (isInputChainEmpty(ctx)) {
+    pcn_log(
+      ctx, LOG_DEBUG,
+      "[ChainSelector] No INPUT chain instantiated. Apply default action for INPUT chain. ");
+    // PASS_LABELING if ACCEPT
+    // DROP_NO_LABELING if DROP
+    incrementDefaultCountersInput(md->packet_len);
+    return applyDefaultActionInput(ctx);
+  }
+
   result = sharedEle.lookup(&key);
   if (result == NULL) {
     // Not possible
     return RX_DROP;
   }
-#if _NR_ELEMENTS_INPUT == 1
-  (result->bits)[0] = 0x7FFFFFFFFFFFFFFF;
-#else
-#pragma unroll
+
   for (int i = 0; i < _NR_ELEMENTS_INPUT; ++i) {
     /*This is the first module, it initializes the percpu*/
     (result->bits)[i] = 0x7FFFFFFFFFFFFFFF;
   }
 
-#endif
-#endif
-#if _NR_ELEMENTS_INPUT > 0
   // update map with INPUT_LABELING
   updateForwardingDecision(INPUT_LABELING);
 
   // call chain label INGRESS
   call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
 
-#endif
   pcn_log(
-      ctx, LOG_DEBUG,
-      "No INPUT chain instantiated. Apply default action for INPUT chain. ");
-  // PASS_LABELING if ACCEPT
-  // DROP_NO_LABELING if DROP
-  incrementDefaultCountersInput(md->packet_len);
-  _DEFAULTACTION_INPUT
-  call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
+      ctx, LOG_ERR,
+      "[ChainSelector] Error while performing tail call to id _CONNTRACK_LABEL_INGRESS");
+  return RX_DROP;
 
 FORWARD:;
-#if _NR_ELEMENTS_FORWARD > 0
+  if (isForwardChainEmpty(ctx)) {
+    pcn_log(ctx, LOG_DEBUG,
+          "[ChainSelector] No FORWARD chain instantiated. Apply default action for FORWARD "
+          "chain. ");
+
+    // PASS_LABELING if ACCEPT
+    // DROP_NO_LABELING if DROP
+    incrementDefaultCountersForward(md->packet_len);
+    return applyDefaultActionForward(ctx);
+  }
   result = sharedEle.lookup(&key);
   if (result == NULL) {
     // Not possible
     return RX_DROP;
   }
-#if _NR_ELEMENTS_FORWARD == 1
-  (result->bits)[0] = 0x7FFFFFFFFFFFFFFF;
-#else
-#pragma unroll
+
   for (int i = 0; i < _NR_ELEMENTS_FORWARD; ++i) {
     /*This is the first module, it initializes the percpu*/
     (result->bits)[i] = 0x7FFFFFFFFFFFFFFF;
   }
 
-#endif
-#endif
-#if _NR_ELEMENTS_FORWARD > 0
   // update map with FORWARD_LABELING
   updateForwardingDecision(FORWARD_LABELING);
 
   // call chain label INGRESS
   call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
 
-#endif
-  pcn_log(ctx, LOG_DEBUG,
-          "No FORWARD chain instantiated. Apply default action for FORWARD "
-          "chain. ");
-
-  // PASS_LABELING if ACCEPT
-  // DROP_NO_LABELING if DROP
-  incrementDefaultCountersForward(md->packet_len);
-  _DEFAULTACTION_FORWARD
-  call_bpf_program(ctx, _CONNTRACK_LABEL_INGRESS);
+  pcn_log(
+      ctx, LOG_ERR,
+      "[ChainSelector] Error while performing tail call to id _CONNTRACK_LABEL_INGRESS");
+  return RX_DROP;
 
 #endif
 
@@ -248,51 +327,49 @@ FORWARD:;
   // __be32* ip_matched = localip.lookup(&ip->saddr);
   if (ip_matched) {
     pcn_log(ctx, LOG_DEBUG,
-            "EGRESS Chain Selector. Src ip matched. -->OUTPUT chain. ");
+            "[ChainSelector] EGRESS. Src ip matched. -->OUTPUT chain. ");
     goto OUTPUT;
   } else {
     pcn_log(ctx, LOG_DEBUG,
-            "EGRESS Chain Selector. Src ip NOT matched. -->PASS. ");
+            "[ChainSelector] EGRESS. Src ip NOT matched. -->PASS. ");
     goto PASS;
   }
 
 OUTPUT:;
-#if _NR_ELEMENTS_OUTPUT > 0
+  if (isOutputChainEmpty(ctx)) {
+    pcn_log(
+      ctx, LOG_DEBUG,
+      "[ChainSelector] No OUTPUT chain instantiated. Apply default action for OUTPUT chain. ");
+
+    // PASS_LABELING if ACCEPT
+    // DROP_NO_LABELING if DROP
+    incrementDefaultCountersOutput(md->packet_len);
+    return applyDefaultActionOutput(ctx);
+  }
   result = sharedEle.lookup(&key);
   if (result == NULL) {
     // Not possible
     return RX_DROP;
   }
-#if _NR_ELEMENTS_OUTPUT == 1
-  (result->bits)[0] = 0x7FFFFFFFFFFFFFFF;
-#else
-#pragma unroll
+
   for (int i = 0; i < _NR_ELEMENTS_OUTPUT; ++i) {
     /*This is the first module, it initializes the percpu*/
     (result->bits)[i] = 0x7FFFFFFFFFFFFFFF;
   }
-#endif
-#endif
-#if _NR_ELEMENTS_OUTPUT > 0
+
   // update map with OUTPUT_LABELING
   updateForwardingDecision(OUTPUT_LABELING);
 
   // call chain label INGRESS
   call_bpf_program(ctx, _CONNTRACK_LABEL_EGRESS);
-#endif
   pcn_log(
-      ctx, LOG_DEBUG,
-      "No OUTPUT chain instantiated. Apply default action for OUTPUT chain. ");
-
-  // PASS_LABELING if ACCEPT
-  // DROP_NO_LABELING if DROP
-  incrementDefaultCountersOutput(md->packet_len);
-  _DEFAULTACTION_OUTPUT
-  call_bpf_program(ctx, _CONNTRACK_LABEL_EGRESS);
+      ctx, LOG_ERR,
+      "[ChainSelector] Error while performing tail call to id _CONNTRACK_LABEL_EGRESS");
+  return RX_DROP;
 
 PASS:;
   pcn_log(ctx, LOG_DEBUG,
-          "No hit for OUTPUT chain. Let the packet PASS_NO_LABELING. ");
+          "[ChainSelector] No hit for OUTPUT chain. Let the packet PASS_NO_LABELING. ");
   return RX_OK;
 
 #endif

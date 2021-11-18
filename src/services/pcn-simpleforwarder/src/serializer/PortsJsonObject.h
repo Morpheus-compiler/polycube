@@ -19,6 +19,7 @@
 
 #include "JsonObjectBase.h"
 
+#include <vector>
 
 namespace polycube {
 namespace service {
@@ -43,9 +44,19 @@ public:
   void setName(std::string value);
   bool nameIsSet() const;
 
+  /// <summary>
+  /// IP address and prefix of the port
+  /// </summary>
+  std::string getIp() const;
+  void setIp(std::string value);
+  bool ipIsSet() const;
+  void unsetIp();
+
 private:
   std::string m_name;
   bool m_nameIsSet;
+  std::string m_ip;
+  bool m_ipIsSet;
 };
 
 }

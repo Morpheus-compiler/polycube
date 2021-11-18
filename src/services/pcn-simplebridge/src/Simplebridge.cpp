@@ -22,19 +22,23 @@
 #include <tins/ethernetII.h>
 #include <tins/tins.h>
 #include <thread>
+#include <regex>
 
 using namespace Tins;
 
 Simplebridge::Simplebridge(const std::string name,
                            const SimplebridgeJsonObject &conf)
-    : Cube(conf.getBase(), {simplebridge_code}, {}), quit_thread_(false),
-      SimplebridgeBase(name) {
+    : Cube(conf.getBase(), {simplebridge_code}, {}), SimplebridgeBase(name),
+    opt_code(simplebridge_code), quit_thread_(false) {
   logger()->info("Creating Simplebridge instance");
   addPortsList(conf.getPorts());
   addFdb(conf.getFdb());
 
   timestamp_update_thread_ =
       std::thread(&Simplebridge::updateTimestampTimer, this);
+
+  //optimization_thread_ =
+  //    std::thread(&Simplebridge::optimizationThreadReload, this);
 }
 
 Simplebridge::~Simplebridge() {
@@ -46,12 +50,24 @@ Simplebridge::~Simplebridge() {
 void Simplebridge::quitAndJoin() {
   quit_thread_ = true;
   timestamp_update_thread_.join();
+  //optimization_thread_.join();
 }
 
 void Simplebridge::updateTimestampTimer() {
   do {
     sleep(1);
     updateTimestamp();
+  } while (!quit_thread_);
+}
+
+void Simplebridge::optimizationThreadReload() {
+  uint8_t i = 0;
+  do {
+    sleep(1); i++;
+    if(i >= 30) {
+      i=0;
+      reloadWithOptimization();
+    }
   } while (!quit_thread_);
 }
 
@@ -115,9 +131,58 @@ void Simplebridge::reloadCodeWithAgingtime(uint32_t aging_time) {
   std::string aging_time_str("#define AGING_TIME " +
                              std::to_string(aging_time));
 
-  reload(aging_time_str + simplebridge_code);
+  reload(aging_time_str + opt_code);
 
   logger()->trace("New bridge code reloaded");
+}
+
+void Simplebridge::reloadWithOptimization() {
+  logger()->info("Reading all the maps and try to JIT entries");
+
+  std::regex re(R"(entry = fwdtable\.lookup\(&dst_mac\);)");
+  std::string fwd_switch_case_code = getFwdSwitchCaseCode();
+
+  std::string new_code = std::regex_replace(simplebridge_code, re, fwd_switch_case_code);
+
+  if (new_code != opt_code) {
+    // OK, let's reload
+    reload(new_code);
+    opt_code = new_code;
+    logger()->info("The new code has been reloaded :)");
+  } else {
+    logger()->debug("All the possible optimizations have been already applied");
+  }
+}
+
+std::string Simplebridge::getFwdSwitchCaseCode() {
+  std::ostringstream new_lookup_code;
+  int num_entries = 0;
+
+  auto fwdtable = get_hash_table<uint64_t, fwd_entry>("fwdtable");
+  auto fdb = fwdtable.get_all();
+
+  new_lookup_code << "switch (dst_mac) {" << std::endl;
+  new_lookup_code << "  default:" << std::endl;
+  new_lookup_code << "    entry = fwdtable.lookup(&dst_mac);" << std::endl;
+  new_lookup_code << "    dst_interface = entry->port;" << std::endl;
+  new_lookup_code << "    break;" << std::endl;
+
+  for (auto &pair : fdb) {
+    auto map_key = pair.first;
+    auto map_entry = pair.second;
+
+    new_lookup_code << "  case " << std::to_string(map_key) << ":" << std::endl;
+    new_lookup_code << "    dst_interface = " << std::to_string(map_entry.port) << ";" << std::endl;
+    new_lookup_code << R"(  pcn_log(ctx, LOG_DEBUG, "Matched direct entry"); )" << std::endl;
+    new_lookup_code << "    goto FORWARD;" << std::endl;
+    if (++num_entries > 5) {
+      break;
+    }
+  }
+
+  new_lookup_code << "}" << std::endl;
+
+  return new_lookup_code.str();
 }
 
 std::shared_ptr<Fdb> Simplebridge::getFdb() {

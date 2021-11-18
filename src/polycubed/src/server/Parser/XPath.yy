@@ -16,7 +16,7 @@
 %require "3.0"
 %skeleton "lalr1.cc"
 %define api.namespace {polycube::polycubed::Rest::Parser}
-%define parser_class_name {XPathParser}
+%define api.parser.class {XPathParser}
 %language "C++"
 %no-lines
 

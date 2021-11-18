@@ -106,6 +106,8 @@ std::string RulePortForwardingEntry::getProto() {
   case ProtoEnum::ALL:
     return "all";
   }
+
+  throw std::runtime_error("Unknown protocol");
 }
 
 void RulePortForwardingEntry::setProto(const std::string &value) {

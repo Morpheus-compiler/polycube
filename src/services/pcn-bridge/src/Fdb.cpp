@@ -67,13 +67,13 @@ std::shared_ptr<FdbEntry> Fdb::getEntry(const uint16_t &vlan,
       throw std::runtime_error("Map entry not found");
     }
 
+    logger()->debug("[Fdb] Filtering database entry read successfully");
+    
     return std::move(entry);
   } catch (std::exception &e) {
     logger()->error("[Fdb] Unable to read the map key. {0}", e.what());
     throw std::runtime_error("Map entry not found");
   }
-
-  logger()->debug("[Fdb] Filtering database entry read successfully");
 }
 
 std::vector<std::shared_ptr<FdbEntry>> Fdb::getEntryList() {

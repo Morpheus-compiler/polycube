@@ -30,6 +30,8 @@
 #include "utils/utils.h"
 #include "cubes_dump.h"
 
+#include "polycube/services/fifo_map.hpp"
+
 #include "../Data/Lib/ListResource.h"
 
 namespace polycube::polycubed::Rest::Resources::Endpoint {

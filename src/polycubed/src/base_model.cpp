@@ -264,4 +264,75 @@ Response BaseModel::get_port_tcubes(const std::string &cube_name,
   return Response{kOk, ::strdup(j.dump().c_str())};
 }
 
+Response BaseModel::get_dyn_opt(const std::string &cube_name) const {
+  auto cube_ = ServiceController::get_cube(cube_name);
+  if (cube_ == nullptr) {
+    return Response{kNoContent, ::strdup("Cube does not exist")};
+  }
+
+  // TODO: is this case even possible?
+  auto cube = std::dynamic_pointer_cast<CubeIface>(cube_);
+  if (cube == nullptr) {
+    return Response{kNoContent, ::strdup("Cube is transparent")};
+  }
+
+  std::string _dyn_opt;
+  if (cube->get_dyn_opt_enabled()) {
+    _dyn_opt = "true";
+  } else {
+    _dyn_opt = "false";
+  }
+  auto dyn_opt = "\"" + _dyn_opt + "\"";
+
+  return Response{kOk, ::strdup(dyn_opt.data())};
+}
+
+Response BaseModel::get_morpheus_started(const std::string &cube_name) const {
+  auto cube_ = ServiceController::get_cube(cube_name);
+  if (cube_ == nullptr) {
+    return Response{kNoContent, ::strdup("Cube does not exist")};
+  }
+
+  // TODO: is this case even possible?
+  auto cube = std::dynamic_pointer_cast<CubeIface>(cube_);
+  if (cube == nullptr) {
+    return Response{kNoContent, ::strdup("Cube is transparent")};
+  }
+
+  std::string _start_morpheus;
+  if (cube->get_morpheus_started()) {
+    _start_morpheus = "true";
+  } else {
+    _start_morpheus = "false";
+  }
+  auto start_morpheus = "\"" + _start_morpheus + "\"";
+
+  return Response{kOk, ::strdup(start_morpheus.data())};
+}
+  
+Response BaseModel::set_start_morpheus(const std::string &cube_name, const nlohmann::json &json) {
+  auto cube_ = ServiceController::get_cube(cube_name);
+  if (cube_ == nullptr) {
+    return Response{kNoContent, ::strdup("Cube does not exist")};
+  }
+
+  // TODO: is this case even possible?
+  auto cube = std::dynamic_pointer_cast<CubeIface>(cube_);
+  if (cube == nullptr) {
+    return Response{kNoContent, ::strdup("Cube is transparent")};
+  }
+
+  auto _start_morpheus = json.get<bool>();
+
+  if (_start_morpheus && cube->get_morpheus_started()) {
+    return Response{kOperationNotSupported, ::strdup("Morpheus is already active")};
+  } else if (!_start_morpheus && cube->get_morpheus_started()) {
+    // TODO: Support this in the future
+    return Response{kOperationNotSupported, ::strdup("Morpheus is already active. You cannot stop it")};
+  } else {
+    cube->set_start_morpheus(_start_morpheus);
+    return Response{kOk, ::strdup("")};
+  }
+}
+
 }  // namespace polycube::polycubed

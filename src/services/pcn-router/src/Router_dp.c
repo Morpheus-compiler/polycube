@@ -28,7 +28,7 @@
 #include <uapi/linux/udp.h>
 
 #define CHECK_MAC_DST
-#define ROUTING_TABLE_DIM 256
+#define ROUTING_TABLE_DIM 65536
 #define ROUTER_PORT_N 32
 #define ARP_TABLE_DIM 32
 #define MAX_SECONDARY_ADDRESSES 5 // also defined in Ports.h
@@ -66,8 +66,8 @@ struct r_port {
   __be32 secondary_netmask[MAX_SECONDARY_ADDRESSES];
   __be64 mac : 48;
 };
-BPF_F_TABLE("lpm_trie", struct rt_k, struct rt_v, routing_table,
-            ROUTING_TABLE_DIM, BPF_F_NO_PREALLOC);
+
+BPF_LPM_TRIE(routing_table, struct rt_k, struct rt_v, ROUTING_TABLE_DIM);
 /*
 Router Port table provides a way to simulate the physical interface of the
 router
@@ -173,7 +173,8 @@ static inline int send_packet_to_output_interface(
   else
     // Next Hop not local, lookup in arp table for the next hop ip address.
     dst_ip = nexthop;
-  struct arp_entry *entry = arp_table.lookup(&dst_ip);
+  struct arp_entry *entry;
+  entry = arp_table.lookup(&dst_ip);
   if (!entry)
     return arp_lookup_miss(ctx, md, dst_ip, out_port, ip_port);
 
@@ -219,12 +220,13 @@ static inline int send_arp_reply(struct CTXTYPE *ctx, struct pkt_metadata *md,
   if (target_ip == in_port->ip)
     sender = in_port->ip;
   else {
-    __be32 *arr = in_port->secondary_ip;
+    // This part causes an error with the dynamic optimizations, I'm removing it
+    /*__be32 *arr = in_port->secondary_ip;
     int pos = search_secondary_address(arr, target_ip);
     if (pos > -1)
       sender = arr[pos];
-    else
-      return RX_DROP;
+    else*/
+    return RX_DROP;
   }
 
   pcn_log(ctx, LOG_DEBUG, "somebody is asking for my address");
@@ -310,11 +312,13 @@ IP:;  // ipv4 packet
 
   // find entry in routing table
   struct rt_k k = {32, ip->daddr};
-  struct rt_v *rt_entry_p = routing_table.lookup(&k);
+  struct rt_v *rt_entry_p;
+  rt_entry_p = routing_table.lookup(&k);
   if (!rt_entry_p) {
     pcn_log(ctx, LOG_TRACE, "no routing table match for %I", ip->daddr);
     goto DROP;
   }
+  pcn_log(ctx, LOG_TRACE, "Routing table lookup succeded for ip: %I", ip->daddr);
   /* Check if the pkt destination is one local interface of the router */
   if (rt_entry_p->type == TYPE_LOCALINTERFACE) {
 #ifdef SHADOW
@@ -327,7 +331,8 @@ IP:;  // ipv4 packet
   }
   // Select out interface
   u16 out_port = rt_entry_p->port;
-  struct r_port *r_port_p = router_port.lookup(&out_port);
+  struct r_port *r_port_p;
+  r_port_p = router_port.lookup(&out_port);
   if (!r_port_p) {
     pcn_log(ctx, LOG_ERR, "out port '%d' not found", out_port);
     goto DROP;

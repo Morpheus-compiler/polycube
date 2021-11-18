@@ -1,0 +1,121 @@
+module bmc {
+  yang-version 1.1;
+  namespace "http://polycube.network/bmc";
+  prefix "bmc";
+
+  import polycube-base { prefix "polycube-base"; }
+  import polycube-standard-base { prefix "polycube-standard-base"; }
+
+  organization "Polycube open source project";
+  description "YANG data model for the Polycube version of the BMC-Cache Orange Project (https://github.com/Orange-OpenSource/bmc-cache)";
+
+  polycube-base:service-description "BMC Cache";
+  polycube-base:service-version "1.0.0";
+  polycube-base:service-name "bmc";
+  polycube-base:service-min-kernel-version "5.3.0";
+
+  uses "polycube-standard-base:standard-base-yang-module";
+
+  container bmcStats {
+    config false;
+    leaf get_recv_count {
+      config false;
+      type uint32;
+      description "Number of GET command received";
+    }
+    leaf set_recv_count {
+      config false;
+      type uint32;
+      description "Number of SET command received";
+    }
+    leaf get_resp_count {
+      config false;
+      type uint32;
+      description "Number of GET command reply analyzed";
+    }
+    leaf hit_misprediction {
+      config false;
+      type uint32;
+      description "Number of keys that were expected to hit but did not (either because of a hash colision or a race with an invalidation/update)";
+    }
+    leaf hit_count {
+      config false;
+      type uint32;
+      description "Number of HIT in kernel cache";
+    }
+    leaf miss_count {
+      config false;
+      type uint32;
+      description "Number of MISS in kernel cache";
+    }
+    leaf update_count {
+      config false;
+      type uint32;
+      description "Number of kernel cache updates";
+    }
+    leaf invalidation_count {
+      config false;
+      type uint32;
+      description "Number of kernel cache entry invalidated";
+    }
+
+    action reset_all {
+      description "Reset all stats of BMC";
+      output {
+        leaf result {
+          type boolean;
+          description "Return TRUE is the stats were correctly reset";
+        }
+      }
+    }
+
+    action getPktCount {
+      description "Return packet count of a single program";
+      input {
+        leaf time {
+          type uint32;
+          description "How long it should read the measurement";
+        }
+      }
+      output {
+        leaf average {
+          type uint64;
+          description "Return average pps";
+        }
+      }
+    }
+  }
+
+  
+
+  grouping memcached-value {
+      leaf len {
+          type uint32;
+          description "Lenght on the BMC Cache entry";
+      }
+      leaf valid {
+          type string;
+          description "Flag to check if entry is valid or not";
+      }
+      leaf hash {
+          type int32;
+          description "Hash of the cache entry value";
+      }
+      leaf data {
+          type string;
+          description "Data inside the BMC cache";
+      }
+  }
+
+  list memcached {
+    key "hash-key";
+    description "Entry in the BMC Cache";
+
+    leaf hash-key {
+      type uint32;
+      description "Key of the BMC Cache";
+    }
+
+    uses bmc:memcached-value;
+  }
+}

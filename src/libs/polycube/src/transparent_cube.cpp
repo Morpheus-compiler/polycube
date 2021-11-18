@@ -23,8 +23,9 @@ namespace service {
 
 TransparentCube::TransparentCube(const nlohmann::json &conf,
                                  const std::vector<std::string> &ingress_code,
-                                 const std::vector<std::string> &egress_code)
-    : BaseCube(conf, ingress_code, egress_code) {
+                                 const std::vector<std::string> &egress_code,
+                                 const std::vector<std::string> &cflags)
+    : BaseCube(conf, ingress_code, egress_code, cflags) {
   handle_packet_in = [&](const PacketIn *md,
                          const std::vector<uint8_t> &packet) -> void {
     // This lock guarantees:
@@ -46,7 +47,7 @@ TransparentCube::TransparentCube(const nlohmann::json &conf,
   cube_ = factory_->create_transparent_cube(
       conf, ingress_code, egress_code, handle_log_msg,
       std::bind(&TransparentCube::set_control_plane_log_level, this,
-                std::placeholders::_1),
+                std::placeholders::_1), cflags,
       handle_packet_in, std::bind(&TransparentCube::attach, this));
   // TODO: where to keep this reference?, keep a double reference?
   BaseCube::cube_ = cube_;

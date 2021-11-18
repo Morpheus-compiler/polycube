@@ -39,15 +39,16 @@ CubeFactoryImpl::CubeFactoryImpl(const std::string &service_name)
 std::shared_ptr<CubeIface> CubeFactoryImpl::create_cube(
     const nlohmann::json &conf, const std::vector<std::string> &ingress_code,
     const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-    const set_log_level_cb &log_level_cb, const packet_in_cb &cb) {
+    const set_log_level_cb &log_level_cb, const std::vector<std::string> &cflags, const packet_in_cb &cb) {
   auto name = conf.at("name").get<std::string>();
   auto type = string_to_cube_type(conf.at("type").get<std::string>());
   auto level = stringLogLevel(conf.at("loglevel").get<std::string>());
   auto shadow = conf.at("shadow").get<bool>();
   auto span = conf.at("span").get<bool>();
+  auto dyn_opt_enabled = conf.at("dyn-opt").get<bool>();
 
   auto cube =
-      create_cube(name, ingress_code, egress_code, log_msg, type, cb, level, shadow, span);
+      create_cube(name, ingress_code, egress_code, log_msg, type, cb, level, shadow, span, dyn_opt_enabled, cflags);
   auto base = std::dynamic_pointer_cast<BaseCube>(cube);
   base->set_log_level_cb(log_level_cb);
   return std::move(cube);
@@ -56,7 +57,8 @@ std::shared_ptr<CubeIface> CubeFactoryImpl::create_cube(
 std::shared_ptr<CubeIface> CubeFactoryImpl::create_cube(
     const std::string &name, const std::vector<std::string> &ingress_code,
     const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-    const CubeType type, const packet_in_cb &cb, LogLevel level, bool shadow, bool span) {
+    const CubeType type, const packet_in_cb &cb, 
+    LogLevel level, bool shadow, bool span, bool dyn_opt_enabled, const std::vector<std::string> &cflags) {
   std::shared_ptr<CubeIface> cube;
   typename std::unordered_map<std::string,
                               std::shared_ptr<BaseCubeIface>>::iterator iter;
@@ -66,11 +68,11 @@ std::shared_ptr<CubeIface> CubeFactoryImpl::create_cube(
   case CubeType::XDP_SKB:
   case CubeType::XDP_DRV:
     cube = std::make_shared<CubeXDP>(name, service_name_, ingress_code,
-                                     egress_code, level, type, shadow, span);
+                                     egress_code, level, type, shadow, span, dyn_opt_enabled, cflags);
     break;
   case CubeType::TC:
     cube = std::make_shared<CubeTC>(name, service_name_, ingress_code,
-                                    egress_code, level, shadow, span);
+                                    egress_code, level, shadow, span, dyn_opt_enabled, cflags);
     break;
   default:
     throw std::runtime_error("invalid cube type");
@@ -100,14 +102,15 @@ std::shared_ptr<CubeIface> CubeFactoryImpl::create_cube(
 std::shared_ptr<TransparentCubeIface> CubeFactoryImpl::create_transparent_cube(
     const nlohmann::json &conf, const std::vector<std::string> &ingress_code,
     const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
-    const set_log_level_cb &log_level_cb, const packet_in_cb &cb,
-    const attach_cb &attach) {
+    const set_log_level_cb &log_level_cb, const std::vector<std::string> &cflags,
+    const packet_in_cb &cb, const attach_cb &attach) {
   auto name = conf.at("name").get<std::string>();
   auto type = string_to_cube_type(conf.at("type").get<std::string>());
   auto level = stringLogLevel(conf.at("loglevel").get<std::string>());
+  auto dyn_opt_enabled = conf.at("dyn-opt").get<bool>();
 
   auto cube = create_transparent_cube(name, ingress_code, egress_code, log_msg,
-                                      type, cb, attach, level);
+                                      type, cb, attach, level, dyn_opt_enabled, cflags);
   auto base = std::dynamic_pointer_cast<BaseCube>(cube);
   base->set_log_level_cb(log_level_cb);
   return std::move(cube);
@@ -117,7 +120,7 @@ std::shared_ptr<TransparentCubeIface> CubeFactoryImpl::create_transparent_cube(
     const std::string &name, const std::vector<std::string> &ingress_code,
     const std::vector<std::string> &egress_code, const log_msg_cb &log_msg,
     const CubeType type, const packet_in_cb &cb, const attach_cb &attach,
-    LogLevel level) {
+    LogLevel level, bool dyn_opt_enabled, const std::vector<std::string> &cflags) {
   std::shared_ptr<TransparentCubeIface> cube;
   typename std::unordered_map<std::string,
                               std::shared_ptr<BaseCubeIface>>::iterator iter;
@@ -127,11 +130,11 @@ std::shared_ptr<TransparentCubeIface> CubeFactoryImpl::create_transparent_cube(
   case CubeType::XDP_SKB:
   case CubeType::XDP_DRV:
     cube = std::make_shared<TransparentCubeXDP>(
-        name, service_name_, ingress_code, egress_code, level, type, attach);
+        name, service_name_, ingress_code, egress_code, level, type, dyn_opt_enabled, attach, cflags);
     break;
   case CubeType::TC:
     cube = std::make_shared<TransparentCubeTC>(
-        name, service_name_, ingress_code, egress_code, level, attach);
+        name, service_name_, ingress_code, egress_code, level, dyn_opt_enabled, attach, cflags);
     break;
   default:
     throw std::runtime_error("invalid cube type");

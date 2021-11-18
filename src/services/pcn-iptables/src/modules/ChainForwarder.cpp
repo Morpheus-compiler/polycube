@@ -27,7 +27,7 @@ Iptables::ChainForwarder::ChainForwarder(const int &index, Iptables &outer,
   load();
 }
 
-Iptables::ChainForwarder::~ChainForwarder() {}
+Iptables::ChainForwarder::~ChainForwarder() = default;
 
 std::string Iptables::ChainForwarder::defaultActionString(ChainNameEnum chain) {
   return "";

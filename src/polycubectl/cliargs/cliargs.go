@@ -29,6 +29,7 @@ import (
 
 	"github.com/polycube-network/polycube/src/polycubectl/config"
 	"github.com/polycube-network/polycube/src/polycubectl/httprequest"
+	valid "github.com/asaskevich/govalidator"
 
 	"github.com/Jeffail/gabs"
 )
@@ -327,16 +328,27 @@ func (cli *CLIArgs) buildBody() []byte {
 	JSONObj := gabs.New()
 
 	for k, v := range cli.BodyArgs {
-		number, err := strconv.Atoi(v)
-		if err == nil {
-			JSONObj.SetP(number, k)
+		if v[0] == '"' && v[len(v)-1] == '"' {
+			v = v[1:len(v)-1]
+			JSONObj.SetP(valid.ToString(v), k)
 			continue
 		}
 
-		float, err := strconv.ParseFloat(v, 64)
-		if err == nil {
-			JSONObj.SetP(float, k)
-			continue
+
+		if valid.IsInt(v) {
+			number, err := strconv.Atoi(v)
+			if err == nil {
+				JSONObj.SetP(number, k)
+				continue
+			}
+		}
+		
+		if valid.IsFloat(v) {
+			float, err := strconv.ParseFloat(v, 64)
+			if err == nil {
+				JSONObj.SetP(float, k)
+				continue
+			}
 		}
 
 		b, err := strconv.ParseBool(v)
@@ -346,7 +358,7 @@ func (cli *CLIArgs) buildBody() []byte {
 		}
 
 		// TODO: what if k is ""
-		JSONObj.SetP(v, k)
+		JSONObj.SetP(valid.ToString(v), k)
 	}
 
 	return JSONObj.Bytes()
@@ -365,18 +377,27 @@ func (cli *CLIArgs) buildSingleParamBody() (string, []byte) {
 			break
 		}
 
-		// if string is a number, a float or a boolean, put it in the body
-		// withsout quotes
-		_, err = strconv.Atoi(v)
-		if err == nil {
-			body = v
+		if v[0] == '"' && v[len(v)-1] == '"' {
+			body = valid.ToString(v)
 			break
 		}
 
-		_, err = strconv.ParseFloat(v, 64)
-		if err == nil {
-			body = v
-			break
+		// if string is a number, a float or a boolean, put it in the body
+		// withsout quotes
+		if valid.IsInt(v) {
+			_, err = strconv.Atoi(v)
+			if err == nil {
+				body = v
+				break
+			}
+		}
+
+		if valid.IsFloat(v) {
+			_, err = strconv.ParseFloat(v, 64)
+			if err == nil {
+				body = v
+				break
+			}
 		}
 
 		_, err = strconv.ParseBool(v)
@@ -391,7 +412,7 @@ func (cli *CLIArgs) buildSingleParamBody() (string, []byte) {
 			break
 		}
 
-		body = v
+		body = valid.ToString(v)
 
 		break
 	}

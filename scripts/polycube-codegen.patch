@@ -1,0 +1,26 @@
+diff --git a/install.sh b/install.sh
+index c423e0f..10e6edb 100755
+--- a/install.sh
++++ b/install.sh
+@@ -43,7 +43,7 @@ $SUDO $APT_CMD update -y
+ # Install python dependencies
+ PACKAGES=""
+ PACKAGES+=" sudo git wget"
+-PACKAGES+=" python-minimal python-pip python-setuptools" # dependencies for pyang swagger
++#PACKAGES+=" python-minimal python-pip python-setuptools" # dependencies for pyang swagger
+ PACKAGES+=" default-jre default-jdk maven" # dependencies for swaggercodegen
+ PACKAGES+=" jq" # dependencies for json parsing on bash scripts
+ 
+diff --git a/polycube-codegen.sh b/polycube-codegen.sh
+index d27c050..0e50b81 100755
+--- a/polycube-codegen.sh
++++ b/polycube-codegen.sh
+@@ -90,7 +90,7 @@ now="$(date '+%Y_%m_%d_%H_%M_%S')"
+ json_filename="$now"_api.json
+ #echo "$now"
+ 
+-pyang -f swagger -p $POLYCUBE_BASE_DATAMODELS_FOLDER $YANG_PATH -o /tmp/"$json_filename" > $POLYCUBE_CODEGEN_LOG 2>&1
++sudo pyang -f swagger -p $POLYCUBE_BASE_DATAMODELS_FOLDER $YANG_PATH -o /tmp/"$json_filename" > $POLYCUBE_CODEGEN_LOG 2>&1
+ 
+ if [ -n "${OUT_SWAGGER_PATH+set}" ]; then
+ 	cp /tmp/"$json_filename" $OUT_SWAGGER_PATH

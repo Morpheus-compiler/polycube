@@ -56,6 +56,8 @@ Key Generate(Body::ListType type, const std::string &key_name,
     v.string = key_value.data();
     return {key_name.data(), DECIMAL, v};
   }
+
+  throw std::runtime_error("Unexpected key");
 }
 }  // namespace
 

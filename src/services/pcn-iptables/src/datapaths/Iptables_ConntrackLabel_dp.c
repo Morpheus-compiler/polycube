@@ -134,11 +134,14 @@ BPF_TABLE_SHARED("percpu_array", int, u64, bytes_acceptestablished_Input, 1);
 
 BPF_TABLE_SHARED("percpu_array", int, u64, pkts_acceptestablished_Forward, 1);
 BPF_TABLE_SHARED("percpu_array", int, u64, bytes_acceptestablished_Forward, 1);
+
+BPF_TABLE_SHARED("percpu_array", int, u64, pkts_acceptestablished_Output, 1);
+BPF_TABLE_SHARED("percpu_array", int, u64, bytes_acceptestablished_Output, 1);
 #endif
 
 #if _EGRESS_LOGIC
-//BPF_TABLE_SHARED("percpu_array", int, u64, pkts_acceptestablished_Output, 1);
-//BPF_TABLE_SHARED("percpu_array", int, u64, bytes_acceptestablished_Output, 1);
+BPF_TABLE("extern", int, u64, pkts_acceptestablished_Output, 1);
+BPF_TABLE("extern", int, u64, bytes_acceptestablished_Output, 1);
 #endif
 
 #if _INGRESS_LOGIC
@@ -171,12 +174,27 @@ static __always_inline void incrementAcceptEstablishedForward(u32 bytes) {
 }
 #endif
 
-static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
-  pcn_log(ctx, LOG_DEBUG, "Conntrack label received packet");
-  pcn_log(ctx, LOG_DEBUG, "Conntrack Mode: _CONNTRACK_MAIN_MODE");
+#if _EGRESS_LOGIC
+static __always_inline void incrementAcceptEstablishedOutput(u32 bytes) {
+  u64 *value;
+  int zero = 0;
+  value = pkts_acceptestablished_Output.lookup(&zero);
+  if (value) {
+    *value += 1;
+  }
 
+  value = bytes_acceptestablished_Output.lookup(&zero);
+  if (value) {
+    *value += bytes;
+  }
+}
+#endif
+
+static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
+  pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] Received packet");
+  pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] Conntrack Mode: _CONNTRACK_MAIN_MODE");
 #if _CONNTRACK_MAIN_MODE == 0
-  goto action;
+  goto DISABLED;
 #else
   struct packetHeaders *pkt;
   int k = 0;
@@ -291,7 +309,7 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
 
       // Unexpected situation
       pcn_log(ctx, LOG_DEBUG,
-              "[FW_DIRECTION] Should not get here. Flags: %d. State: %d. ",
+              "[ConntrackLabel] FW_DIRECTION Should not get here. Flags: %d. State: %d. ",
               pkt->flags, value->state);
       pkt->connStatus = INVALID;
       goto action;
@@ -401,18 +419,11 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
       }
 
     UDP_REVERSE:;
-
-      if (value->state == NEW) {
-        // An entry was present in the rev direction with the NEW state. This
-        // means that this is an answer, from the other side. Connection is
-        // now ESTABLISHED.
-        pkt->connStatus = ESTABLISHED;
-        goto action;
-      } else {
-        // value->state == ESTABLISHED
-        pkt->connStatus = ESTABLISHED;
-        goto action;
-      }
+      // An entry was present in the rev direction with the NEW state. This
+      // means that this is an answer, from the other side. Connection is
+      // now ESTABLISHED.
+      pkt->connStatus = ESTABLISHED;
+      goto action;
     }
 
   UDP_MISS:;
@@ -519,13 +530,12 @@ static int handle_rx(struct CTXTYPE *ctx, struct pkt_metadata *md) {
     goto action;
   }
 
-  pcn_log(ctx, LOG_DEBUG, "Conntrack does not support the l4proto= %d",
+  pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] Conntrack does not support the l4proto= %d",
           pkt->l4proto);
 
   // If it gets here, the protocol is not yet supported.
   pkt->connStatus = INVALID;
   goto action;
-#endif
 
 action:;
   // TODO possible optimization, inject it if needed
@@ -539,7 +549,7 @@ action:;
 
   switch (*decision) {
   case INPUT_LABELING:
-    pcn_log(ctx, LOG_DEBUG, "ConntrackLabel: INPUT_LABELING ");
+    pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] INPUT_LABELING ");
 
 #if _CONNTRACK_MODE_INPUT == 2
     goto DISABLED;
@@ -554,7 +564,7 @@ action:;
     return RX_DROP;
 
   case FORWARD_LABELING:
-    pcn_log(ctx, LOG_DEBUG, "ConntrackLabel: FORWARD_LABELING ");
+    pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] FORWARD_LABELING ");
 
 #if _CONNTRACK_MODE_FORWARD == 2
     goto DISABLED;
@@ -569,13 +579,13 @@ action:;
     return RX_DROP;
 
   case PASS_LABELING:
-    pcn_log(ctx, LOG_DEBUG, "ConntrackLabel: PASS_LABELING ");
+    pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] PASS_LABELING ");
 
     goto DISABLED;
     return RX_DROP;
 
   default:
-    pcn_log(ctx, LOG_ERR, "ConntrackLabel Ingress: Something went wrong. ");
+    pcn_log(ctx, LOG_ERR, "[ConntrackLabel] INGRESS: Something went wrong. ");
     return RX_DROP;
   }
 
@@ -585,12 +595,13 @@ action:;
 
   switch (*decision) {
   case OUTPUT_LABELING:
-    pcn_log(ctx, LOG_DEBUG, "ConntrackLabel: OUTPUT_LABELING ");
+    pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] OUTPUT_LABELING ");
 
 #if _CONNTRACK_MODE_OUTPUT == 2
     goto DISABLED;
 #elif _CONNTRACK_MODE_OUTPUT == 1
     if (pkt->connStatus == ESTABLISHED) {
+      incrementAcceptEstablishedOutput(md->packet_len);
       goto ENABLED_MATCH;
     } else {
       goto ENABLED_NOT_MATCH;
@@ -599,33 +610,34 @@ action:;
     return RX_DROP;
 
   case PASS_LABELING:
-    pcn_log(ctx, LOG_DEBUG, "ConntrackLabel: PASS_LABELING ");
+    pcn_log(ctx, LOG_DEBUG, "[ConntrackLabel] PASS_LABELING ");
 
     goto DISABLED;
     return RX_DROP;
 
   default:
-    pcn_log(ctx, LOG_ERR, "ChainForwarder Egress: Something went wrong. ");
+    pcn_log(ctx, LOG_ERR, "[ConntrackLabel] EGRESS: Something went wrong. ");
     return RX_DROP;
   }
 
 #endif
 
+#endif
 DISABLED:;
   pcn_log(ctx, LOG_TRACE,
-          "ConntrackLabel (Optimization OFF) Calling Chainforwarder %d",
+          "[ConntrackLabel] (Optimization OFF) Calling Chainforwarder %d",
           _CHAINFORWARDER);
   call_bpf_program(ctx, _CHAINFORWARDER);
 
   pcn_log(ctx, LOG_TRACE,
-          "ConntrackLabel Calling Chainforwarder FAILED. Dropping");
+          "[ConntrackLabel] Calling Chainforwarder FAILED. Dropping");
   return RX_DROP;
 
 ENABLED_MATCH:;
   // ON (Perform optimization for accept established)
   //  if established, forward directly
   pcn_log(ctx, LOG_TRACE,
-          "ConntrackLabel (Optimization ON) ESTABLISHED Connection found. "
+          "[ConntrackLabel] (Optimization ON) ESTABLISHED Connection found. "
           "Calling ConntrackTableUpdate.");
   call_bpf_program(ctx, _CONNTRACKTABLEUPDATE);
 
@@ -636,7 +648,7 @@ ENABLED_NOT_MATCH:;
   // ON (Perform optimization for accept established), but no match on
   // ESTABLISHED connection
   pcn_log(ctx, LOG_TRACE,
-          "ConntrackLabel (Optimization ON) no connection found. Calling "
+          "[ConntrackLabel] (Optimization ON) no connection found. Calling "
           "ChainForwarder.");
   call_bpf_program(ctx, _CHAINFORWARDER);
 

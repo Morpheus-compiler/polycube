@@ -23,6 +23,9 @@
 
 #include "polycube/services/cube.h"
 #include "polycube/services/port.h"
+
+
+
 #include "polycube/services/utils.h"
 #include "polycube/services/fifo_map.hpp"
 
@@ -40,6 +43,11 @@ class SimpleforwarderBase: public virtual polycube::service::Cube<Ports> {
   virtual SimpleforwarderJsonObject toJsonObject();
 
   /// <summary>
+  /// Defines if the service should be automatically optimized by Morpheus
+  /// </summary>
+  virtual bool getDynOpt() = 0;
+
+  /// <summary>
   /// Entry of the ports table
   /// </summary>
   virtual std::shared_ptr<Ports> getPorts(const std::string &name);
@@ -49,6 +57,12 @@ class SimpleforwarderBase: public virtual polycube::service::Cube<Ports> {
   virtual void replacePorts(const std::string &name, const PortsJsonObject &conf);
   virtual void delPorts(const std::string &name);
   virtual void delPortsList();
+
+  /// <summary>
+  /// Flag to indicate if a simple redirect in the other port should be performed
+  /// </summary>
+  virtual bool getSimpleRedirect() = 0;
+  virtual void setSimpleRedirect(const bool &value) = 0;
 
   /// <summary>
   /// Entry of the Actions table

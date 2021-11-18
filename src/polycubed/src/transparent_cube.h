@@ -31,7 +31,8 @@ class TransparentCube : public BaseCube, public TransparentCubeIface {
   explicit TransparentCube(const std::string &name,
                            const std::string &service_name,
                            PatchPanel &patch_panel, LogLevel level,
-                           CubeType type, const service::attach_cb &attach);
+                           CubeType type, bool dyn_opt_enabled, 
+                           const service::attach_cb &attach, const std::vector<std::string> &cflags);
   virtual ~TransparentCube();
 
   // Sets the index of the next program or iterface to call after the program of
@@ -47,6 +48,9 @@ class TransparentCube : public BaseCube, public TransparentCubeIface {
 
   void set_conf(const nlohmann::json &conf);
   nlohmann::json to_json() const;
+  
+  void set_cflags(const std::vector<std::string> &cflags);
+  const std::vector<std::string> &get_cflags();
 
   void subscribe_parent_parameter(const std::string &param_name,
                                   ParameterEventCallback &callback);

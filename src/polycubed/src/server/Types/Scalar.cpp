@@ -44,6 +44,8 @@ Scalar ScalarFromYang(LY_DATA_TYPE type) {
   case LY_TYPE_UINT64:
     return Scalar::Unsigned;
   }
+
+  return Scalar::Empty;
 }
 
 std::string ScalarToString(Scalar value) {

@@ -265,10 +265,12 @@ void Packetcapture::setCapture(const PacketcaptureCaptureEnum &value) {
 
 bool Packetcapture::getAnonimize() {
   //TODO
+  throw std::runtime_error("Method unsupported");
 }
 
 void Packetcapture::setAnonimize(const bool &value) {
   //TODO
+  throw std::runtime_error("Method unsupported");
 }
 
 std::string Packetcapture::getDump() {

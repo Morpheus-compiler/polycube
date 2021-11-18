@@ -31,9 +31,9 @@ namespace polycubed {
 TransparentCube::TransparentCube(const std::string &name,
                                  const std::string &service_name,
                                  PatchPanel &patch_panel, LogLevel level,
-                                 CubeType type,
-                                 const service::attach_cb &attach)
-    : BaseCube(name, service_name, "", patch_panel, level, type),
+                                 CubeType type, bool dyn_opt_enabled,
+                                 const service::attach_cb &attach, const std::vector<std::string> &cflags)
+    : BaseCube(name, service_name, "", patch_panel, level, type, dyn_opt_enabled, cflags),
       ingress_next_(0),
       egress_next_(0),
       egress_next_is_netdev_(false),
@@ -178,6 +178,14 @@ void TransparentCube::send_packet_out(const std::vector<uint8_t> &packet,
 
 void TransparentCube::set_conf(const nlohmann::json &conf) {
   return BaseCube::set_conf(conf);
+}
+
+void TransparentCube::set_cflags(const std::vector<std::string> &cflags) {
+  BaseCube::set_cflags(cflags);
+}
+
+const std::vector<std::string> &TransparentCube::get_cflags() {
+  return BaseCube::get_cflags();
 }
 
 nlohmann::json TransparentCube::to_json() const {

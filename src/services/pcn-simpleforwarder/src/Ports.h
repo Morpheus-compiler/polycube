@@ -28,4 +28,13 @@ class Ports : public PortsBase {
         std::shared_ptr<polycube::service::PortIface> port,
         const PortsJsonObject &conf);
   virtual ~Ports();
+
+  /// <summary>
+  /// IP address and prefix of the port
+  /// </summary>
+  std::string getIp() override;
+  void setIp(const std::string &value) override;
+
+ private:
+  std::string ip_;
 };

@@ -563,6 +563,8 @@ uint8_t Service::convertProtoToNumber(const ServiceProtoEnum &proto) {
   case ServiceProtoEnum::UDP:
     return 17;
   }
+
+  throw std::runtime_error("Service protocol unsupported.");
 }
 
 ServiceProtoEnum Service::convertNumberToProto(const uint8_t proto) {
@@ -573,7 +575,7 @@ ServiceProtoEnum Service::convertNumberToProto(const uint8_t proto) {
     return ServiceProtoEnum::UDP;
 
   // Warning: This should never happen
-  return ServiceProtoEnum::TCP;
+  throw std::runtime_error("Service protocol unsupported.");
 }
 
 std::shared_ptr<spdlog::logger> Service::logger() {

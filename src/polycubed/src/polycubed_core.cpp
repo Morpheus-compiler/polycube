@@ -567,10 +567,10 @@ std::string PolycubedCore::get_cube_port_parameter(
       }
       res = current->Child(segment);
       if (res == nullptr) {
-        throw std::runtime_error("parameter not found");
+        throw std::runtime_error("parameter " + parameter + " not found");
       }
     } else {
-      throw std::runtime_error("parameter not found");
+      throw std::runtime_error("parameter " + parameter + "  not found");
     }
   }
 

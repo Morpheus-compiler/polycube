@@ -45,6 +45,8 @@ polycube::LogLevel stringLogLevel(const std::string &level) {
     if (iequals(level_names[i], level))
       return static_cast<polycube::LogLevel>(i);
   }
+
+  throw std::runtime_error("Unknown LogLevel: " + level);
 }
 
 spdlog::level::level_enum logLevelToSPDLog(polycube::LogLevel level) {
@@ -61,9 +63,11 @@ spdlog::level::level_enum logLevelToSPDLog(polycube::LogLevel level) {
     return spdlog::level::err;
   case polycube::LogLevel::CRITICAL:
     return spdlog::level::critical;
-  case polycube::LogLevel::OFF:
+  default:
     return spdlog::level::off;
   }
+
+  throw std::runtime_error("Unknown LogLevel");
 }
 
 size_t get_possible_cpu_count() {
@@ -79,6 +83,8 @@ std::string cube_type_to_string(CubeType type) {
     case CubeType::XDP_SKB:
       return "XDP_SKB";
   }
+
+  throw std::runtime_error("Unknown cube type");
 }
 
 CubeType string_to_cube_type(const std::string &type_str) {
@@ -89,6 +95,8 @@ CubeType string_to_cube_type(const std::string &type_str) {
   } else if (iequals(type_str, "XDP_SKB")) {
     return CubeType::XDP_SKB;
   }
+
+  throw std::runtime_error("Unknown cube type: " + type_str);
 }
 
 std::string port_status_to_string(PortStatus status) {
@@ -98,6 +106,8 @@ std::string port_status_to_string(PortStatus status) {
   case PortStatus::DOWN:
     return "DOWN";
   }
+
+  throw std::runtime_error("Unknown port status");
 }
 
 PortStatus string_to_port_status(const std::string &status) {
@@ -106,6 +116,8 @@ PortStatus string_to_port_status(const std::string &status) {
   } else if (iequals(status, "DOWN")) {
     return PortStatus::DOWN;
   }
+
+  throw std::runtime_error("Unknown port status: " + status);
 }
 
 }  // namespace polycube

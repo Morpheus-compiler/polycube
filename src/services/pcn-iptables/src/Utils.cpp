@@ -216,6 +216,8 @@ static int ChainRuleConntrackEnumToInt(const ConntrackstatusEnum &status) {
   } else if (status == ConntrackstatusEnum::INVALID) {
     return 3;
   }
+
+  throw std::runtime_error("Conntrack Status unknown");
 }
 
 // convert ip address list from internal rules representation, to Api
@@ -247,7 +249,7 @@ bool Chain::ipFromRulesToMap(
         current.fromString(rule->getDst());
         // std::cout << "DST IP RULE | ";
       }
-    } catch (std::runtime_error re) {
+    } catch (const std::runtime_error &re) {
       // IP not set: don't care rule.
       dont_care_rules.push_back(rule->getId());
       // std::cout << "IP RULE DONT CARE | ID: " << rule->getId();
@@ -293,7 +295,7 @@ bool Chain::ipFromRulesToMap(
           current_rule_ip.fromString(rule->getDst());
           // std::cout << "DST IP RULE | ";
         }
-      } catch (std::runtime_error re) {
+      } catch (const std::runtime_error &re) {
         // IP not set: don't care rule.
         current_rule_ip.fromString("0.0.0.0/0");
         // std::cout << "IP RULE DONT CARE | ID: " << rule->getId();
@@ -323,7 +325,7 @@ bool Chain::ipFromRulesToMap(
 
   // Don't care rules are in all entries. Anyway, this loops is useless if there
   // are no rules at all requiring matching on this field.
-  if (ips.size() != 0 && dont_care_rules.size() != 0) {
+  if (!ips.empty() && !dont_care_rules.empty()) {
     // std::cout << "++ ADDING 0.0.0.0/0 rule :)" << std::endl;
 
     std::vector<uint64_t> bitVector(
@@ -344,7 +346,7 @@ bool Chain::ipFromRulesToMap(
           current_rule_ip.fromString(rule->getDst());
           // std::cout << "DST IP RULE | ";
         }
-      } catch (std::runtime_error re) {
+      } catch (const std::runtime_error &re) {
         // IP not set: don't care rule.
         current_rule_ip.fromString("0.0.0.0/0");
         // std::cout << "IP RULE DONT CARE | ID: " << rule->getId();
@@ -367,10 +369,19 @@ bool Chain::ipFromRulesToMap(
         SET_BIT(bitVector[current_rule_id / 63], current_rule_id % 63);
       }
     }
+    //else if (ips.empty() && !dont_care_rules.empty()) {
 
     ips.insert(std::pair<struct IpAddr, std::vector<uint64_t>>(wildcard_ip,
                                                                bitVector));
     brk = false;
+  } else {
+    std::vector<uint64_t> bitVector(
+            FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
+    struct IpAddr wildcard_ip = {0, 0};
+
+    std::transform(bitVector.begin(), bitVector.end(), bitVector.begin(), [](const uint64_t &val) { return ~(val & 0); });
+
+    ips.insert(std::make_pair(wildcard_ip, bitVector));
   }
 
   return brk;
@@ -390,7 +401,7 @@ bool Chain::transportProtoFromRulesToMap(
   std::vector<uint32_t> dont_care_rules;
 
   int proto;
-  uint32_t rule_id;
+  uint32_t rule_id = 0;
 
   bool brk = true;
 
@@ -398,7 +409,7 @@ bool Chain::transportProtoFromRulesToMap(
     try {
       rule_id = rule->getId();
       proto = Iptables::protocolFromStringToInt(rule->getL4proto());
-    } catch (std::runtime_error re) {
+    } catch (const std::runtime_error &re) {
       dont_care_rules.push_back(rule_id);
       continue;
     }
@@ -425,44 +436,71 @@ bool Chain::transportProtoFromRulesToMap(
       }
     }
     brk = false;
+  } else {
+    std::vector<uint64_t> bitVector(
+            FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
+
+    std::transform(bitVector.begin(), bitVector.end(), bitVector.begin(), [](const uint64_t &val) { return ~(val & 0); });
+
+    protocols.insert(std::pair<int, std::vector<uint64_t>>(0, bitVector));
+    brk = false;
   }
   return brk;
 }
 
 bool Chain::portFromRulesToMap(
     const uint8_t &type, std::map<uint16_t, std::vector<uint64_t>> &ports,
-    const std::vector<std::shared_ptr<ChainRule>> &rules) {
+    const std::vector<std::shared_ptr<ChainRule>> &rules, Chain *chain) {
   std::vector<uint32_t> dont_care_rules;
 
-  uint32_t rule_id;
-  uint16_t port;
+  uint32_t rule_id = 0;
+  uint16_t port_start, port_end;
 
   bool brk = true;
 
   for (auto const &rule : rules) {
     try {
       rule_id = rule->getId();
-      if (type == SOURCE_TYPE)
-        port = rule->getSport();
-      else
-        port = rule->getDport();
-    } catch (std::runtime_error re) {
-      // IP not set: don't care rule.
+      if (type == SOURCE_TYPE) {
+        if (rule->isSportRange()) {
+          port_start = rule->getSportStart();
+          port_end = rule->getSportEnd();
+        } else {
+          port_start = rule->getSportStart();
+          port_end = port_start;
+        }
+      } else {
+        if (rule->isDportRange()) {
+          port_start = rule->getDportStart();
+          port_end = rule->getDportEnd();
+        } else {
+          port_start = rule->getDportStart();
+          port_end = port_start;
+        }
+      }
+    } catch (const std::runtime_error &re) {
+      // Port not set: don't care rule.
       dont_care_rules.push_back(rule_id);
       continue;
     }
 
-    auto it = ports.find(port);
-    if (it == ports.end()) {
-      // First entry
-      std::vector<uint64_t> bitVector(
+    uint32_t port = port_start;
+
+    do {
+      auto it = ports.find(port);
+      if (it == ports.end()) {
+        // First entry
+        std::vector<uint64_t> bitVector(
           FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
-      SET_BIT(bitVector[rule_id / 63], rule_id % 63);
-      ports.insert(std::pair<uint16_t, std::vector<uint64_t>>(port, bitVector));
-    } else {
-      SET_BIT((it->second)[rule_id / 63], rule_id % 63);
-    }
+        SET_BIT(bitVector[rule_id / 63], rule_id % 63);
+        ports.insert(std::pair<uint16_t, std::vector<uint64_t>>(port, bitVector));
+      } else {
+        SET_BIT((it->second)[rule_id / 63], rule_id % 63);
+      }
+      port++;
+    } while (port <= port_end);
   }
+  
   // Don't care rules are in all entries. Anyway, this loop is useless if there
   // are no rules at all requiring matching on this field.
   if (ports.size() != 0 && dont_care_rules.size() != 0) {
@@ -475,6 +513,14 @@ bool Chain::portFromRulesToMap(
       }
     }
     brk = false;
+  } else {
+    std::vector<uint64_t> bitVector(
+            FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
+
+    std::transform(bitVector.begin(), bitVector.end(), bitVector.begin(), [](const uint64_t &val) { return ~(val & 0); });
+
+    ports.insert(std::pair<uint16_t, std::vector<uint64_t>>(0, bitVector));
+    brk = false;
   }
   return brk;
 }
@@ -484,7 +530,7 @@ bool Chain::interfaceFromRulesToMap(
     const std::vector<std::shared_ptr<ChainRule>> &rules, Iptables &iptables) {
   std::vector<uint32_t> dont_care_rules;
 
-  uint32_t rule_id;
+  uint32_t rule_id = 0;
   uint16_t interface;
 
   bool brk = true;
@@ -500,7 +546,7 @@ bool Chain::interfaceFromRulesToMap(
         std::string interface_string = rule->getOutIface();
         interface = iptables.interfaceNameToIndex(interface_string);
       }
-    } catch (std::runtime_error re) {
+    } catch (const std::runtime_error &re) {
       // Interface not set: don't care rule.
       dont_care_rules.push_back(rule_id);
       continue;
@@ -530,11 +576,19 @@ bool Chain::interfaceFromRulesToMap(
       }
     }
     brk = false;
+  } else {
+    std::vector<uint64_t> bitVector(
+            FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
+
+    std::transform(bitVector.begin(), bitVector.end(), bitVector.begin(), [](const uint64_t &val) { return ~(val & 0); });
+
+    interfaces.insert(std::pair<uint16_t, std::vector<uint64_t>>(0, bitVector));
+    brk = false;
   }
   return brk;
 }
 
-bool Chain::fromRuleToHorusKeyValue(std::shared_ptr<ChainRule> rule,
+bool Chain::fromRuleToHorusKeyValue(const std::shared_ptr<ChainRule> &rule,
                                     struct HorusRule &key,
                                     struct HorusValue &value) {
   key.setFields = 0;
@@ -551,7 +605,7 @@ bool Chain::fromRuleToHorusKeyValue(std::shared_ptr<ChainRule> rule,
       SET_BIT(key.setFields, HorusConst::SRCIP);
       key.src_ip = ips.ip;
     }
-  } catch (std::runtime_error) {
+  } catch (const std::runtime_error &e) {
   }
 
   try {
@@ -561,28 +615,30 @@ bool Chain::fromRuleToHorusKeyValue(std::shared_ptr<ChainRule> rule,
       SET_BIT(key.setFields, HorusConst::DSTIP);
       key.dst_ip = ipd.ip;
     }
-  } catch (std::runtime_error) {
+  } catch (const std::runtime_error &e) {
   }
 
   try {
     uint8_t proto = Iptables::protocolFromStringToInt(rule->getL4proto());
     SET_BIT(key.setFields, HorusConst::L4PROTO);
     key.l4proto = proto;
-  } catch (std::runtime_error) {
+  } catch (const std::runtime_error &e) {
   }
 
   try {
-    uint16_t srcport = rule->getSport();
+    //TODO: This is wrong for rules with range ports
+    uint16_t srcport = rule->getSportStart();
     SET_BIT(key.setFields, HorusConst::SRCPORT);
     key.src_port = srcport;
-  } catch (std::runtime_error) {
+  } catch (const std::runtime_error &e) {
   }
 
   try {
-    uint16_t dstport = rule->getDport();
+    //TODO: This is wrong for rules with range ports
+    uint16_t dstport = rule->getDportStart();
     SET_BIT(key.setFields, HorusConst::DSTPORT);
     key.dst_port = dstport;
-  } catch (std::runtime_error) {
+  } catch (const std::runtime_error &e) {
   }
 
   // TODO Check if ACCEPT/DROP semantic is valid
@@ -633,7 +689,7 @@ bool Chain::conntrackFromRulesToMap(
     std::map<uint8_t, std::vector<uint64_t>> &statusMap,
     const std::vector<std::shared_ptr<ChainRule>> &rules) {
   std::vector<uint8_t> statesVector({NEW, ESTABLISHED, RELATED, INVALID});
-  uint32_t rule_id;
+  uint32_t rule_id = 0;
   uint8_t rule_state;
   bool conntrackRulePresent = false;
 
@@ -645,8 +701,17 @@ bool Chain::conntrackFromRulesToMap(
     }
   }
 
-  if (!conntrackRulePresent)
+  if (!conntrackRulePresent) {
+    std::vector<uint64_t> bitVector(
+            FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
+
+    std::transform(bitVector.begin(), bitVector.end(), bitVector.begin(), [](const uint64_t &val) { return ~(val & 0); });
+
+    for (const auto &state : statesVector) {
+      statusMap.insert(std::make_pair(state, bitVector));
+    }
     return false;
+  }
 
   for (uint8_t state : statesVector) {
     std::vector<uint64_t> bitVector(
@@ -685,6 +750,15 @@ bool Chain::flagsFromRulesToMap(
     }
   }
   if (!are_flags_present) {
+    std::vector<uint64_t> bitVector(
+            FROM_NRULES_TO_NELEMENTS(Iptables::max_rules_));
+
+    std::transform(bitVector.begin(), bitVector.end(), bitVector.begin(), [](const uint64_t &val) { return ~(val & 0); });
+
+    for (int j = 0; j < 256; ++j) {
+      flags.push_back(bitVector);
+    }
+    
     return false;
   }
 

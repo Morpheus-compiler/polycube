@@ -72,9 +72,16 @@ class BaseCubeIface {
 
   virtual const Guid &uuid() const = 0;
   virtual const std::string get_name() const = 0;
+  virtual const bool get_dyn_opt_enabled() const = 0;
+
+  virtual void set_cflags(const std::vector<std::string> &cflags) = 0;
+  virtual const std::vector<std::string> &get_cflags() = 0;
 
   virtual void set_conf(const nlohmann::json &conf) = 0;
   virtual nlohmann::json to_json() const = 0;
+
+  virtual const bool get_morpheus_started() const = 0;
+  virtual void set_start_morpheus(bool start) = 0;
 };
 
 class CubeIface : virtual public BaseCubeIface {
@@ -94,6 +101,9 @@ class CubeIface : virtual public BaseCubeIface {
   virtual const bool get_span() const = 0;
   virtual void set_span(const bool value) = 0;
 
+  virtual void set_cflags(const std::vector<std::string> &cflags) = 0;
+  virtual const std::vector<std::string> &get_cflags() = 0;
+
   virtual const std::string get_veth_name_from_index(const int ifindex) = 0;
 };
 
@@ -107,6 +117,9 @@ class TransparentCubeIface : virtual public BaseCubeIface {
 
   virtual void set_conf(const nlohmann::json &conf) = 0;
   virtual nlohmann::json to_json() const = 0;
+
+  virtual void set_cflags(const std::vector<std::string> &cflags) = 0;
+  virtual const std::vector<std::string> &get_cflags() = 0;
 
   virtual void subscribe_parent_parameter(const std::string &param_name,
                                         ParameterEventCallback &callback) = 0;

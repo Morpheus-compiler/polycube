@@ -41,6 +41,13 @@ std::string nbo_uint_to_ip_string(uint32_t ip);
 uint64_t mac_string_to_nbo_uint(const std::string &mac);
 std::string nbo_uint_to_mac_string(uint64_t mac);
 
+/* mac (aa:bb:cc:dd:ee:ff) to string and vicersa
+ * Number is in network byte order (nbo), i.e., big endian */
+std::vector<uint8_t> mac_string_to_uint_vector(const std::string &mac);
+std::string uint_vector_to_mac_string(std::vector<uint8_t> mac);
+
+std::vector<std::string> split(std::string s, std::string delimiter);
+
 /* transforms an ipv4 dotted representation into a hexadecimal big endian */
 /* deprecated */
 std::string ip_string_to_hexbe_string(const std::string &ip);
@@ -82,6 +89,9 @@ void split_ip_and_prefix(const std::string &ip_and_prefix,
  * custom implemented logic
  */
 std::string format_debug_string(std::string str, const uint64_t args[4]);
+
+// used for replace strings in datapath code
+void replaceAll(std::string &str, const std::string &from, const std::string &to);
 
 }  // namespace utils
 }  // namespace service

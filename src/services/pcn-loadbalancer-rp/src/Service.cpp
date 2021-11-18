@@ -397,6 +397,8 @@ uint8_t Service::convertProtoToNumber(const ServiceProtoEnum &proto) {
     // 143-252 is in the Unassigned IANA protocol numbers
     return 143;
   }
+  
+  throw std::runtime_error("Unknown protocol");
 }
 
 ServiceProtoEnum Service::convertNumberToProto(const uint8_t proto) {

@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "../interface/IptablesInterface.h"
+#include "../base/IptablesBase.h"
 
 #include "polycube/services/cube.h"
 #include "polycube/services/port.h"
@@ -41,7 +41,7 @@
 
 #define REQUIRED_FIB_LOOKUP_KERNEL ("4.19.0")
 
-using namespace io::swagger::server::model;
+using namespace polycube::service::model;
 
 struct ct_k {
   uint32_t srcIp;
@@ -62,8 +62,7 @@ struct ct_v {
 class Ports;
 class Chain;
 
-class Iptables : public polycube::service::Cube<Ports>,
-                 public IptablesInterface {
+class Iptables : public IptablesBase {
   friend class Chain;
   friend class ChainRule;
   friend class ChainStats;
@@ -77,6 +76,9 @@ class Iptables : public polycube::service::Cube<Ports>,
                  const std::vector<uint8_t> &packet) override;
 
   /*APIs*/
+
+  bool getDynOpt() override;
+
   /// <summary>
   /// Enables the Connection Tracking module. Mandatory if connection tracking
   /// rules are needed. Default is ON.
@@ -97,18 +99,6 @@ class Iptables : public polycube::service::Cube<Ports>,
   /// </summary>
   bool getInteractive() override;
   void setInteractive(const bool &value) override;
-
-  /// <summary>
-  /// Entry of the ports table
-  /// </summary>
-  std::shared_ptr<Ports> getPorts(const std::string &name) override;
-  std::vector<std::shared_ptr<Ports>> getPortsList() override;
-  void addPorts(const std::string &name, const PortsJsonObject &conf) override;
-  void addPortsList(const std::vector<PortsJsonObject> &conf) override;
-  void replacePorts(const std::string &name,
-                    const PortsJsonObject &conf) override;
-  void delPorts(const std::string &name) override;
-  void delPortsList() override;
 
   std::shared_ptr<Chain> getChain(const ChainNameEnum &name) override;
   std::vector<std::shared_ptr<Chain>> getChainList() override;
@@ -170,7 +160,7 @@ class Iptables : public polycube::service::Cube<Ports>,
 
   // max rules number, due to algorithm and bpf programs size limit.
   // in order to avoid verifier to complain, we set this limit.
-  static const int max_rules_ = 8192;
+  static const int max_rules_ = 1024;
 
   std::mutex mutex_iptables_;
 
@@ -256,6 +246,8 @@ class Iptables : public polycube::service::Cube<Ports>,
                    ChainNameEnum hop_chain = ChainNameEnum::INVALID_INGRESS);
 
     Program *getHop(std::string hop_name);
+
+    ProgramType getProgramType();
   };
 
   class Parser : public Program {
@@ -268,6 +260,8 @@ class Iptables : public polycube::service::Cube<Ports>,
     std::string defaultActionString(ChainNameEnum chain);  // Overrides
 
     void updateLocalIps();
+    void updateIsTableEmpty(const ChainNameEnum &chain, const std::vector<std::shared_ptr<ChainRule>> &ruleList);
+    void updateDefaultActionTable(const ChainNameEnum &chainName);
   };
 
   class Horus : public Program {
@@ -556,6 +550,7 @@ std::string Iptables::fromContainerToMapString(Iterator it, Iterator end,
       result += separator;
     first = false;
     result += /*"-" + */ std::to_string((*it));
+    result += "uLL";
   }
   result += close;
   return result;

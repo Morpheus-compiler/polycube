@@ -49,9 +49,12 @@ namespace SimpleforwarderApiImpl {
   std::vector<ActionsJsonObject> read_simpleforwarder_actions_list_by_id(const std::string &name);
   std::string read_simpleforwarder_actions_outport_by_id(const std::string &name, const std::string &inport);
   SimpleforwarderJsonObject read_simpleforwarder_by_id(const std::string &name);
+  bool read_simpleforwarder_dyn_opt_by_id(const std::string &name);
   std::vector<SimpleforwarderJsonObject> read_simpleforwarder_list_by_id();
   PortsJsonObject read_simpleforwarder_ports_by_id(const std::string &name, const std::string &portsName);
+  std::string read_simpleforwarder_ports_ip_by_id(const std::string &name, const std::string &portsName);
   std::vector<PortsJsonObject> read_simpleforwarder_ports_list_by_id(const std::string &name);
+  bool read_simpleforwarder_simple_redirect_by_id(const std::string &name);
   void replace_simpleforwarder_actions_by_id(const std::string &name, const std::string &inport, const ActionsJsonObject &value);
   void replace_simpleforwarder_actions_list_by_id(const std::string &name, const std::vector<ActionsJsonObject> &value);
   void replace_simpleforwarder_by_id(const std::string &name, const SimpleforwarderJsonObject &value);
@@ -64,7 +67,9 @@ namespace SimpleforwarderApiImpl {
   void update_simpleforwarder_by_id(const std::string &name, const SimpleforwarderJsonObject &value);
   void update_simpleforwarder_list_by_id(const std::vector<SimpleforwarderJsonObject> &value);
   void update_simpleforwarder_ports_by_id(const std::string &name, const std::string &portsName, const PortsJsonObject &value);
+  void update_simpleforwarder_ports_ip_by_id(const std::string &name, const std::string &portsName, const std::string &value);
   void update_simpleforwarder_ports_list_by_id(const std::string &name, const std::vector<PortsJsonObject> &value);
+  void update_simpleforwarder_simple_redirect_by_id(const std::string &name, const bool &value);
 
   /* help related */
   std::vector<nlohmann::fifo_map<std::string, std::string>> read_simpleforwarder_actions_list_by_id_get_list(const std::string &name);

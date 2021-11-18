@@ -30,8 +30,8 @@ namespace polycubed {
 
 Cube::Cube(const std::string &name, const std::string &service_name,
            PatchPanel &patch_panel, LogLevel level, CubeType type, bool shadow,
-           bool span)
-    : BaseCube(name, service_name, MASTER_CODE, patch_panel, level, type),
+           bool span, bool dyn_opt_enabled, const std::vector<std::string> &cflags)
+    : BaseCube(name, service_name, MASTER_CODE, patch_panel, level, type, dyn_opt_enabled, cflags),
       shadow_(shadow),
       span_(span) {
   std::lock_guard<std::mutex> guard(bcc_mutex);
@@ -72,6 +72,14 @@ std::string Cube::get_wrapper_code() {
 void Cube::set_conf(const nlohmann::json &conf) {
   // Ports are handled in the service implementation directly
   return BaseCube::set_conf(conf);
+}
+
+void Cube::set_cflags(const std::vector<std::string> &cflags) {
+  BaseCube::set_cflags(cflags);
+}
+
+const std::vector<std::string> &Cube::get_cflags() {
+  return BaseCube::get_cflags();
 }
 
 nlohmann::json Cube::to_json() const {
@@ -319,11 +327,11 @@ const std::string Cube::get_veth_name_from_index(const int ifindex) {
 const std::string Cube::MASTER_CODE = R"(
 // Table used to store, for every port, the potential index of the program to
 // call after the egress program.
-BPF_TABLE_SHARED("array", int, u16, egress_next, _POLYCUBE_MAX_PORTS);
+BPF_TABLE_SHARED_RO("array", int, u16, egress_next, _POLYCUBE_MAX_PORTS, 1);
 
 // Same as above for XDP programs. Higher 16 bits of the value tells if the next
 // entity is a program (0) or a netdev (1). Lower 16 bits contain its index.
-BPF_TABLE_SHARED("array", int, u32, egress_next_xdp, _POLYCUBE_MAX_PORTS);
+BPF_TABLE_SHARED_RO("array", int, u32, egress_next_xdp, _POLYCUBE_MAX_PORTS, 1);
 )";
 
 const std::string Cube::CUBE_WRAPPER = R"(

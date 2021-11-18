@@ -95,7 +95,7 @@ class VIfaceImpl
     public:
 
         VIfaceImpl(string name, bool tap, int id);
-        ~VIfaceImpl();
+        ~VIfaceImpl() noexcept(false);
 
         string getName() const
         {

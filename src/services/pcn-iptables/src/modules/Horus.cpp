@@ -68,7 +68,7 @@ Iptables::Horus::Horus(
   load();
 }
 
-Iptables::Horus::~Horus() {}
+Iptables::Horus::~Horus() = default;
 
 std::string Iptables::Horus::defaultActionString(ChainNameEnum chain) {
   return "";

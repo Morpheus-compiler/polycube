@@ -97,4 +97,6 @@ PortsStpStateEnum PortsStp::convertState(enum stp_state state) {
   case STP_BLOCKING:
     return PortsStpStateEnum::BLOCKING;
   }
+
+  throw std::runtime_error("Port STP State unknown");
 }

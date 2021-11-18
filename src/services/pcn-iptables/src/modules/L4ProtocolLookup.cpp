@@ -27,7 +27,7 @@ Iptables::L4ProtocolLookup::L4ProtocolLookup(const int &index,
   load();
 }
 
-Iptables::L4ProtocolLookup::~L4ProtocolLookup() {}
+Iptables::L4ProtocolLookup::~L4ProtocolLookup() = default;
 
 std::string Iptables::L4ProtocolLookup::getCode() {
   std::string no_macro_code = code_;
@@ -54,6 +54,16 @@ std::string Iptables::L4ProtocolLookup::getCode() {
 
   /*Replacing the default action*/
   replaceAll(no_macro_code, "_DEFAULTACTION", defaultActionString());
+
+  if ((chain_ == ChainNameEnum::INPUT) ||
+      (chain_ == ChainNameEnum::FORWARD)) {
+    replaceAll(
+            no_macro_code, "_CONNTRACKTABLEUPDATE",
+            std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_INGRESS));
+  } else {
+    replaceAll(no_macro_code, "_CONNTRACKTABLEUPDATE",
+               std::to_string(ModulesConstants::CONNTRACKTABLEUPDATE_EGRESS));
+  }
 
   if (program_type_ == ProgramType::INGRESS) {
     replaceAll(no_macro_code, "call_bpf_program", "call_ingress_program");
@@ -88,7 +98,7 @@ bool Iptables::L4ProtocolLookup::updateTableValue(
 
 void Iptables::L4ProtocolLookup::updateMap(
     std::map<int, std::vector<uint64_t>> &protocols) {
-  for (auto ele : protocols) {
+  for (const auto &ele : protocols) {
     updateTableValue(ele.first, ele.second);
   }
 }

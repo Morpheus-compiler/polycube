@@ -18,6 +18,8 @@
 // Inherits from.
 
 // Definitions here
+#include <utility>
+
 #include "../Iptables.h"
 
 Iptables::Program::Program(const std::string &code, const int &index,
@@ -47,11 +49,15 @@ void Iptables::Program::updateHop(int hop_number, std::shared_ptr<Program> hop,
   if (hop_chain == ChainNameEnum::OUTPUT)
     hop_name += "OUTPUT_";
   hop_name += std::to_string(hop_number);
-  hops_[hop_name] = hop;
+  hops_[hop_name] = std::move(hop);
 }
 
 int Iptables::Program::getIndex() {
   return index_;
+}
+
+ProgramType Iptables::Program::getProgramType() {
+  return program_type_;
 }
 
 bool Iptables::Program::reload() {
