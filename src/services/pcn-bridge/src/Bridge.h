@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <thread>
 #include "../base/BridgeBase.h"
 
 #include "Fdb.h"

@@ -264,11 +264,6 @@ get_folly() {
     -DCMAKE_BUILD_TYPE=RelWithDebInfo             \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON          \
     ..
-    #-DCMAKE_PREFIX_PATH="$FOLLY_BUILD_DIR"        \
-    #-DCMAKE_INSTALL_PREFIX="$FOLLY_BUILD_DIR"     \
-    #-Dgflags_DIR="$GFLAGS_INSTALL_DIR"            \
-    #-Dfmt_DIR="$FMT_INSTALL_DIR"                  \
-    #..
   make -j $(getconf _NPROCESSORS_ONLN)
   $SUDO make install
   echo -e "${COLOR_GREEN}Folly is installed ${COLOR_OFF}"
@@ -278,16 +273,12 @@ get_folly() {
 
 $SUDO apt update
 PACKAGES=""
-PACKAGES+=" git" # needed to clone dependencies
+PACKAGES+=" git git-lfs" # needed to clone dependencies
 PACKAGES+=" build-essential cmake" # provides compiler and other compilation tools
 PACKAGES+=" autopoint gettext texinfo help2man flex libfl-dev libelf-dev" # bcc dependencies
-#PACKAGES+=" libllvm10 llvm-10 llvm-10-dev llvm-10-doc llvm-10-examples llvm-10-runtime clang-10 lldb-10 lld-10 llvm-10-tools libclang-10-dev"
-#PACKAGES+=" libllvm10 llvm-10-dev libclang-10-dev" # bpf tools compilation tool chain
 PACKAGES+=" libnl-route-3-dev libnl-genl-3-dev" # netlink library
 PACKAGES+=" uuid-dev"
 PACKAGES+=" pkg-config"
-# Removed because of the comment at line L76 (GPG key expired); we had to install this manually
-#PACKAGES+=" libyang-dev"
 PACKAGES+=" autoconf libtool m4 automake libtinfo-dev "
 PACKAGES+=" libssl-dev" # needed for certificate based security
 PACKAGES+=" sudo" # needed for pcn-iptables, when building docker image
@@ -295,8 +286,7 @@ PACKAGES+=" kmod" # needed for pcn-iptables, when using lsmod to unload conntrac
 PACKAGES+=" jq bash-completion" # needed for polycubectl bash autocompletion
 PACKAGES+=" libpcre3-dev" # needed for libyang
 PACKAGES+=" libpcap-dev" # needed for packetcapture filter
-
-  
+PACKAGES+=" tcpreplay" # needed for packetcapture filter
 
 if ! command -v go &> /dev/null
 then

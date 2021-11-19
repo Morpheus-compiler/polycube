@@ -288,7 +288,7 @@ void Config::create_configuration_file(const std::string &path) {
   file << "# polycubed configuration file" << std::endl << std::endl;
   file << "# logging level (trace, debug, info, warn, err, critical, off)"
        << std::endl;
-  file << "loglevel: " << spdlog::level::to_c_str(loglevel) << std::endl;
+  file << "loglevel: " << spdlog::level::to_short_c_str(loglevel) << std::endl;
   file << "# run as daemon" << std::endl;
   file << "daemon: " << daemon << std::endl;
   file << "# file to save polycubed pid" << std::endl;
@@ -320,7 +320,7 @@ void Config::create_configuration_file(const std::string &path) {
 void Config::dump() {
   logger = spdlog::get("polycubed");
   logger->info("configuration parameters: ");
-  logger->info(" loglevel: {}", spdlog::level::to_c_str(loglevel));
+  logger->info(" loglevel: {}", spdlog::level::to_short_c_str(loglevel));
   logger->info(" daemon: {}", daemon);
   logger->info(" pidfile: {}", pidfile);
   logger->info(" port: {}", server_port);

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <thread>
 #include "../base/StpBase.h"
 #include "ext.h"
 #include "stp/stp.h"
