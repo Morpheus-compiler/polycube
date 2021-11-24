@@ -41,6 +41,8 @@ set +e
 # we run 'sudo make install'
 rm -f /home/$USER/.config/polycube/polycubectl_config.yaml
 
+sudo mkdir -p /var/log/polycube
+
 success_message
 
 echo "polycubectl ? to show commands"
