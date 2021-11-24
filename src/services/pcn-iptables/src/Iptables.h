@@ -93,6 +93,17 @@ class Iptables : public IptablesBase {
   void setHorus(const IptablesHorusEnum &value) override;
 
   /// <summary>
+  /// Entry of the ports table
+  /// </summary>
+  std::shared_ptr<Ports> getPorts(const std::string &name) override;
+  std::vector<std::shared_ptr<Ports>> getPortsList() override;
+  void addPorts(const std::string &name, const PortsJsonObject &conf) override;
+  void addPortsList(const std::vector<PortsJsonObject> &conf) override;
+  void replacePorts(const std::string &name, const PortsJsonObject &conf) override;
+  void delPorts(const std::string &name) override;
+  void delPortsList() override;
+
+  /// <summary>
   /// Interactive mode applies new rules immediately; if &#39;false&#39;, the
   /// command &#39;apply-rules&#39; has to be used to apply all the rules at
   /// once. Default is TRUE.

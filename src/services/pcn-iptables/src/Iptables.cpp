@@ -139,7 +139,7 @@ Iptables::Iptables(const std::string name, const IptablesJsonObject &conf)
               ProgramType::EGRESS)));
 
   logger()->debug("Automatically Attaching to network interfaces");
-  attachInterfaces();
+  addPortsList(conf.getPorts());
   reloadAll();
 
   std::vector<std::shared_ptr<ChainRule>> empty;
@@ -177,7 +177,7 @@ Iptables::~Iptables() {
 
 void Iptables::netlinkNotificationCallbackIptables() {
   logger()->debug("Iptables - Netlink notification received");
-  attachInterfaces();
+  // attachInterfaces();
 }
 
 void Iptables::update(const IptablesJsonObject &conf) {
@@ -272,6 +272,47 @@ void Iptables::reloadAll() {
   for (auto it = programs_.begin(); it != programs_.end(); ++it) {
     it->second->reload();
   }
+}
+
+// Basic default implementation, place your extension here (if needed)
+std::shared_ptr<Ports> Iptables::getPorts(const std::string &name) {
+  // call default implementation in base class
+  return IptablesBase::getPorts(name);
+}
+
+// Basic default implementation, place your extension here (if needed)
+std::vector<std::shared_ptr<Ports>> Iptables::getPortsList() {
+  // call default implementation in base class
+  return IptablesBase::getPortsList();
+}
+
+// Basic default implementation, place your extension here (if needed)
+void Iptables::addPorts(const std::string &name, const PortsJsonObject &conf) {
+  IptablesBase::addPorts(name, conf);
+}
+
+// Basic default implementation, place your extension here (if needed)
+void Iptables::addPortsList(const std::vector<PortsJsonObject> &conf) {
+  // call default implementation in base class
+  IptablesBase::addPortsList(conf);
+}
+
+// Basic default implementation, place your extension here (if needed)
+void Iptables::replacePorts(const std::string &name, const PortsJsonObject &conf) {
+  // call default implementation in base class
+  IptablesBase::replacePorts(name, conf);
+}
+
+// Basic default implementation, place your extension here (if needed)
+void Iptables::delPorts(const std::string &name) {
+  // call default implementation in base class
+  IptablesBase::delPorts(name);
+}
+
+// Basic default implementation, place your extension here (if needed)
+void Iptables::delPortsList() {
+  // call default implementation in base class
+  IptablesBase::delPortsList();
 }
 
 void Iptables::attachInterfaces() {

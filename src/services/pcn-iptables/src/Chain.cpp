@@ -176,7 +176,7 @@ ChainAppendOutputJsonObject Chain::append(ChainAppendInputJsonObject input) {
 
   if (parent_.interactive_) {
     ChainRule::applyAcceptEstablishedOptimization(*this);
-    parent_.attachInterfaces();
+    // parent_.attachInterfaces();
   }
 
   return result;
