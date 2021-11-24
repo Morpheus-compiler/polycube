@@ -295,19 +295,19 @@ void Iptables::attachInterfaces() {
 
   std::unordered_map<std::string, std::string> connected_ports_new;
 
-  connected_ports_new.insert({"ens4f0", "ens4f0"});
-  connected_ports_new.insert({"ens4f1", "ens4f1"});
+  // connected_ports_new.insert({"ens4f0", "ens4f0"});
+  // connected_ports_new.insert({"ens4f1", "ens4f1"});
 
-//  auto ifaces =
-//      polycube::polycubed::Netlink::getInstance().get_available_ifaces();
-//  for (auto &it : ifaces) {
-//    auto name = it.second.get_name();
-//    logger()->trace("+Interface {0} ", name);
-//    if (ignored_interfaces.find(name) == ignored_interfaces.end()) {
-//      // logger()->info("+ ATTACH Interface {0} ", name);
-//      connected_ports_new.insert({name, name});
-//    }
-//  }
+ auto ifaces =
+     polycube::polycubed::Netlink::getInstance().get_available_ifaces();
+ for (auto &it : ifaces) {
+   auto name = it.second.get_name();
+   logger()->trace("+Interface {0} ", name);
+   if (ignored_interfaces.find(name) == ignored_interfaces.end()) {
+     // logger()->info("+ ATTACH Interface {0} ", name);
+     connected_ports_new.insert({name, name});
+   }
+ }
 
   for (auto &new_port : connected_ports_new) {
     if (connected_ports_.find(new_port.first) == connected_ports_.end()) {
