@@ -289,30 +289,35 @@ std::vector<std::shared_ptr<Ports>> Iptables::getPortsList() {
 // Basic default implementation, place your extension here (if needed)
 void Iptables::addPorts(const std::string &name, const PortsJsonObject &conf) {
   IptablesBase::addPorts(name, conf);
+  reloadAll();
 }
 
 // Basic default implementation, place your extension here (if needed)
 void Iptables::addPortsList(const std::vector<PortsJsonObject> &conf) {
   // call default implementation in base class
   IptablesBase::addPortsList(conf);
+  reloadAll();
 }
 
 // Basic default implementation, place your extension here (if needed)
 void Iptables::replacePorts(const std::string &name, const PortsJsonObject &conf) {
   // call default implementation in base class
   IptablesBase::replacePorts(name, conf);
+  reloadAll();
 }
 
 // Basic default implementation, place your extension here (if needed)
 void Iptables::delPorts(const std::string &name) {
   // call default implementation in base class
   IptablesBase::delPorts(name);
+  reloadAll();
 }
 
 // Basic default implementation, place your extension here (if needed)
 void Iptables::delPortsList() {
   // call default implementation in base class
   IptablesBase::delPortsList();
+  reloadAll();
 }
 
 void Iptables::attachInterfaces() {

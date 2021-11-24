@@ -106,10 +106,12 @@ std::string Iptables::ConntrackTableUpdate::getCode() {
     for (auto &port : iptables_.getPortsList()) {
       if (port->index() == 0) {
         replaceAll(no_macro_code, "_INDEX_FIRST_INTERFACE", std::to_string(0));
-        unsigned int ifindex = if_nametoindex(port->getName().c_str());
+        unsigned int ifindex = if_nametoindex(port->peer().c_str());
+        iptables_.logger()->info("_INDEX_FIRST_INTERFACE {1} is {0}", ifindex, port->peer());
         replaceAll(no_macro_code, "_IFINDEX_FIRST_INTERFACE", std::to_string(ifindex));
       } else {
-        unsigned int ifindex = if_nametoindex(port->getName().c_str());
+        unsigned int ifindex = if_nametoindex(port->peer().c_str());
+        iptables_.logger()->info("_IFINDEX_SECOND_INTERFACE {1} is {0}", ifindex, port->peer());
         replaceAll(no_macro_code, "_IFINDEX_SECOND_INTERFACE", std::to_string(ifindex));
       }
     }
