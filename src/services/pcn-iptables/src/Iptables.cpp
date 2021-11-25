@@ -24,7 +24,7 @@ Iptables::Iptables(const std::string name, const IptablesJsonObject &conf)
     : Cube(conf.getBase(), {iptables_code_ingress}, {iptables_code_egress}),
     IptablesBase(name),
     netlink_instance_iptables_(polycube::polycubed::Netlink::getInstance()) {
-  logger()->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [Iptables] [%n] [%l] %v");
+  logger()->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [Iptables] [%n] [%^%l%$] %v");
   logger()->info("Creating Iptables instance");
 
   netlink_notification_index_ = netlink_instance_iptables_.registerObserver(
