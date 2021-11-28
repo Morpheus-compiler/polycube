@@ -80,6 +80,31 @@ get_bison() {
   touch "$WORKDIR/bison_installed"
 }
 
+get_yaml_cpp() {
+  # licd $WORKDIR
+  YAML_CPP_DIR=$WORKDIR/yaml-cpp
+  YAML_CPP_BUILD_DIR=$WORKDIR/yaml-cpp/build/
+
+  if [ -f "$WORKDIR/yaml_cpp_installed" ]; then
+      return
+  fi
+  
+  rm -rf "$YAML_CPP_DIR"
+  pushd .
+  cd "$WORKDIR"
+  echo -e "${COLOR_GREEN}[ INFO ] Cloning YAML C++ repo ${COLOR_OFF}"
+  git clone --depth 1 --branch yaml-cpp-0.7.0 https://github.com/jbeder/yaml-cpp.git
+  mkdir -p "$YAML_CPP_BUILD_DIR"
+  cd "$YAML_CPP_BUILD_DIR"
+  cmake ..
+  make -j $(getconf _NPROCESSORS_ONLN)
+  $SUDO make install
+
+  echo -e "${COLOR_GREEN}YAML C++ is installed ${COLOR_OFF}"
+  popd
+  touch "$WORKDIR/yaml_cpp_installed"
+}
+
 get_libyang() {
   # licd $WORKDIR
   LIBYANG_DIR=$WORKDIR/libyang
@@ -338,6 +363,7 @@ get_fmt
 get_gflags
 get_folly
 get_bison
+get_yaml_cpp
 
 # Set $GOPATH, if not already set
 if [[ -z "${GOPATH}" ]]; then
