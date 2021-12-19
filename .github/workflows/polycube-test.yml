@@ -24,4 +24,7 @@ jobs:
       run: |
         chmod +x "${GITHUB_WORKSPACE}/scripts/install.sh"
         ${GITHUB_WORKSPACE}/scripts/install.sh
+    - name: Run
+      run: |
+        timeout 30 sudo polycubed
       
