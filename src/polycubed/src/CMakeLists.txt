@@ -1,7 +1,7 @@
 find_package(PkgConfig REQUIRED)
 
 find_package(Pistache CONFIG REQUIRED)
-
+find_package(prometheus-cpp CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 include_directories(OPENSSL_INCLUDE_DIR)
 
@@ -18,7 +18,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src/libs/polycube/include/)
 include_directories(${CMAKE_SOURCE_DIR}/src/libs/spdlog/)
 include_directories(${CMAKE_SOURCE_DIR}/src/libs/viface/)
 include_directories(${CMAKE_SOURCE_DIR}/src/libs/bcc/src/cc/)
-include_directories(${CMAKE_SOURCE_DIR}/src/libs/prometheus-cpp/core/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/libs/jsoncons/include)
 
 GET_PROPERTY(LOAD_SERVICES GLOBAL PROPERTY LOAD_SERVICES_)
@@ -78,6 +77,7 @@ set(polycubed_libraries
   viface
   dl
   pistache
+  prometheus-cpp::pull
   prometheus-cpp-core
   pthread
   bcc-static

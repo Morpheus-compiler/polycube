@@ -83,19 +83,6 @@ git submodule update --recursive
 
 source scripts/pre-requirements.sh
 
-echo "Install Prometheus-cpp"
-cd $DIR/../src/libs/prometheus-cpp
-set +e
-if [ -d _build ]; then
-    $SUDO rm -rf _build
-fi
-mkdir _build
-cd _build
-cmake .. -DBUILD_SHARED_LIBS=ON
-make -j $(getconf _NPROCESSORS_ONLN)
-$SUDO make install
-
-
 echo "Install polycube"
 cd $DIR/..
 if [ "$INSTALL_CLEAN_POLYCUBE" == true ] ; then

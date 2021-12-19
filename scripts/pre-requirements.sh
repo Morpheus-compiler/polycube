@@ -296,6 +296,34 @@ get_folly() {
   touch "${WORKDIR}/folly_installed"
 }
 
+get_prometheus_cpp() {
+  PROMETHEUS_DIR=$WORKDIR/prometheus
+  PROMETHEUS_BUILD_DIR=$WORKDIR/prometheus/build
+
+  if [ -f "${WORKDIR}/prometheus_installed" ]; then
+    return
+  fi
+
+  rm -rf "$PROMETHEUS_DIR"
+  pushd .
+  cd "$WORKDIR"
+  echo -e "${COLOR_GREEN}[ INFO ] Downloading prometheus CPP ${COLOR_OFF}"
+  mkdir -p "$PROMETHEUS_DIR"
+  wget https://github.com/jupp0r/prometheus-cpp/releases/download/v1.0.0/prometheus-cpp-with-submodules.tar.gz
+  tar xf prometheus-cpp-with-submodules.tar.gz -C prometheus --strip-components 1
+  rm prometheus-cpp-with-submodules.tar.gz
+  echo -e "${COLOR_GREEN}[ INFO ] Building prometheus CPP ${COLOR_OFF}"
+  mkdir -p "$PROMETHEUS_BUILD_DIR"
+  cd "$PROMETHEUS_BUILD_DIR"
+
+  cmake .. -DBUILD_SHARED_LIBS=OFF -DENABLE_PUSH=OFF -DENABLE_COMPRESSION=OFF
+  make -j $(getconf _NPROCESSORS_ONLN)
+  $SUDO make install
+  echo -e "${COLOR_GREEN}prometheus CPP is installed ${COLOR_OFF}"
+  popd
+  touch "${WORKDIR}/prometheus_installed"
+}
+
 $SUDO apt update
 PACKAGES=""
 PACKAGES+=" git git-lfs" # needed to clone dependencies
@@ -364,6 +392,7 @@ get_gflags
 get_folly
 get_bison
 get_yaml_cpp
+get_prometheus_cpp
 
 # Set $GOPATH, if not already set
 if [[ -z "${GOPATH}" ]]; then
