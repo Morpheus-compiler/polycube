@@ -62,7 +62,7 @@ index 0607c65..7e73dd4 100644
  	}
  	nlog = l.WithFields(log.Fields{
 diff --git a/manifests/config_map.yaml b/manifests/config_map.yaml
-index 1e89f5a..872435d 100644
+index 1e89f5a..f542c7b 100644
 --- a/manifests/config_map.yaml
 +++ b/manifests/config_map.yaml
 @@ -10,7 +10,7 @@ data:
@@ -74,7 +74,15 @@ index 1e89f5a..872435d 100644
    nodePortRange: "30000-32767"
    cniConfFilePath: "/host/etc/cni/net.d/00-polykube.json"
    mtu: "1450"
-@@ -28,4 +28,10 @@ data:
+@@ -18,6 +18,7 @@ data:
+   routerName: "r0"
+   extLbrpName: "elb0"
+   k8sDispName: "k0"
++  isDefaultGwDifferentThenExtIface: "true"
+   # The cubes log level can assume one of the following values:
+   # "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "OFF"
+   cubesLogLevel: "INFO"
+@@ -28,4 +29,10 @@ data:
    # added to the daemonset tolerations:
    # - effect: NoSchedule
    #   key: node-role.kubernetes.io/master
@@ -89,7 +97,7 @@ index 1e89f5a..872435d 100644
 +  morpheusOptimizerTimeoutInit: "10"
 \ No newline at end of file
 diff --git a/manifests/daemon_set.yaml b/manifests/daemon_set.yaml
-index 91fe70e..53207a4 100644
+index 91fe70e..81cd03d 100644
 --- a/manifests/daemon_set.yaml
 +++ b/manifests/daemon_set.yaml
 @@ -9,45 +9,60 @@ spec:
@@ -206,7 +214,7 @@ index 91fe70e..53207a4 100644
            env:
              - name: POD_NAME
                valueFrom:
-@@ -172,6 +175,16 @@ spec:
+@@ -172,6 +175,21 @@ spec:
                  configMapKeyRef:
                    name: polykube-cfg
                    key: isCPNodesDeployAllowed
@@ -220,10 +228,15 @@ index 91fe70e..53207a4 100644
 +                configMapKeyRef:
 +                  name: polykube-cfg
 +                  key: morpheusLogLevel
++            - name: IS_DEFAULT_GW_DIFFERENT_THEN_EXT_IFACE
++              valueFrom:
++                configMapKeyRef:
++                  name: polykube-cfg
++                  key: isDefaultGwDifferentThenExtIface
            volumeMounts:
              - name: opt-cni-bin
                mountPath: /host/opt/cni/bin
-@@ -194,13 +207,5 @@ spec:
+@@ -194,13 +212,5 @@ spec:
            hostPath:
              path: /usr/src
        tolerations:
@@ -241,7 +254,7 @@ index 91fe70e..53207a4 100644
 +      - operator: Exists
 +        effect: NoSchedule
 diff --git a/node/env.go b/node/env.go
-index 967992e..78b2526 100644
+index 967992e..3edeadb 100644
 --- a/node/env.go
 +++ b/node/env.go
 @@ -19,12 +19,13 @@ package node
@@ -260,11 +273,25 @@ index 967992e..78b2526 100644
  )
  
  const (
-@@ -225,6 +226,20 @@ func LoadEnvironment() error {
+@@ -225,6 +226,34 @@ func LoadEnvironment() error {
  	}
  	env.IsCPNodesDeployAllowed = isCPNodesDeployAllowed
  
-+	// IsCPNodesDeployAllowed
++	// IsDefaultGwDifferentThenExtIface
++	IsDefaultGwDifferentThenExtIfaceStr := getEnvVar("IS_DEFAULT_GW_DIFFERENT_THEN_EXT_IFACE", "false")
++	IsDefaultGwDifferentThenExtIface, err := strconv.ParseBool(IsDefaultGwDifferentThenExtIfaceStr)
++	if err != nil {
++		log.Error(
++			err,
++			"failed to parse env variable",
++			"envVar", "IS_DEFAULT_GW_DIFFERENT_THEN_EXT_IFACE",
++			"value", IsDefaultGwDifferentThenExtIfaceStr,
++		)
++		return errors.New("failed to parse IS_DEFAULT_GW_DIFFERENT_THEN_EXT_IFACE")
++	}
++	env.IsDefaultGwDifferentThenExtIface = IsDefaultGwDifferentThenExtIface
++
++	// isMorpheusDynamicOptsEnabled
 +	isMorpheusDynamicOptsEnabledStr := getEnvVar("ENABLE_MORPHEUS_DYNAMIC_OPTS", "false")
 +	isMorpheusDynamicOptsEnabled, err := strconv.ParseBool(isMorpheusDynamicOptsEnabledStr)
 +	if err != nil {
@@ -281,11 +308,58 @@ index 967992e..78b2526 100644
  	Env = env
  	log.Info("loaded environment configuration")
  	return nil
+diff --git a/node/node.go b/node/node.go
+index 8a91ba4..75d7c4b 100644
+--- a/node/node.go
++++ b/node/node.go
+@@ -20,6 +20,8 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"net"
++
+ 	"github.com/containernetworking/plugins/pkg/ip"
+ 	"github.com/polycube-network/polykube/types"
+ 	"github.com/vishvananda/netlink"
+@@ -27,7 +29,6 @@ import (
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	"k8s.io/client-go/kubernetes"
+ 	"k8s.io/client-go/rest"
+-	"net"
+ 	ctrl "sigs.k8s.io/controller-runtime"
+ )
+ 
+@@ -132,7 +133,9 @@ func GetDefaultGatewayIPNet(extIface *types.Iface) (*net.IPNet, error) {
+ 			errors.New("the route link index doesn't match the external interface link index"),
+ 			"link index mismatch", "routeLinkIndex", routeLI, "extIfaceLinkIndex", extIfaceLI,
+ 		)
+-		return nil, errors.New("the route link index doesn't match the external interface link index")
++		if !Env.IsDefaultGwDifferentThenExtIface {
++			return nil, errors.New("the route link index doesn't match the external interface link index")
++		}
+ 	}
+ 
+ 	gwIPNet := &net.IPNet{
+@@ -175,7 +178,13 @@ func GetDefaultGatewayMAC(extIface *types.Iface, gwIP net.IP) (net.HardwareAddr,
+ 		errors.New("no ARP entry for default gateway"),
+ 		"failed to retrieve the MAC of the default gateway for the cluster node external interface",
+ 	)
+-	return nil, errors.New("failed to retrieve the MAC of the default gateway for the cluster node external interface")
++
++	if !Env.IsDefaultGwDifferentThenExtIface {
++		return nil, errors.New("failed to retrieve the MAC of the default gateway for the cluster node external interface")
++	} else {
++		mac := [6]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
++		return net.HardwareAddr(mac[:]), nil
++	}
+ }
+ 
+ // GetIP extracts the first parsable IPv4 address of type NodeInternalIP inside the provided node object.
 diff --git a/node/types.go b/node/types.go
-index 275a618..e3952f3 100644
+index 275a618..601ff2b 100644
 --- a/node/types.go
 +++ b/node/types.go
-@@ -18,10 +18,11 @@ package node
+@@ -18,31 +18,34 @@ package node
  
  import (
  	"fmt"
@@ -298,11 +372,44 @@ index 275a618..e3952f3 100644
  )
  
  type Environment struct {
-@@ -43,6 +44,7 @@ type Environment struct {
- 	CubesLogLevel              string
- 	CNILogLevel                string
- 	IsCPNodesDeployAllowed     bool
-+	EnableMorpheusDynamicOpts  bool
+-	PodName                    string
+-	NodeName                   string
+-	APIServerIP                net.IP
+-	APIServerPort              int
+-	VxlanIfaceName             string
+-	PolykubeVethPairNamePrefix string
+-	VtepCIDR                   *net.IPNet
+-	ClusterCIDR                *net.IPNet
+-	NodePortRange              string
+-	CNIConfFilePath            string
+-	MTU                        int
+-	IntLbrpName                string
+-	RouterName                 string
+-	ExtLbrpName                string
+-	K8sDispName                string
+-	CubesLogLevel              string
+-	CNILogLevel                string
+-	IsCPNodesDeployAllowed     bool
++	PodName                          string
++	NodeName                         string
++	APIServerIP                      net.IP
++	APIServerPort                    int
++	VxlanIfaceName                   string
++	PolykubeVethPairNamePrefix       string
++	VtepCIDR                         *net.IPNet
++	ClusterCIDR                      *net.IPNet
++	NodePortRange                    string
++	CNIConfFilePath                  string
++	MTU                              int
++	IntLbrpName                      string
++	RouterName                       string
++	ExtLbrpName                      string
++	K8sDispName                      string
++	CubesLogLevel                    string
++	CNILogLevel                      string
++	IsCPNodesDeployAllowed           bool
++	EnableMorpheusDynamicOpts        bool
++	IsDefaultGwDifferentThenExtIface bool
  }
  
  func (e *Environment) APIServerEndpoint() string {
@@ -8971,7 +9078,7 @@ index 2e8d79e..1ec1c25 100644
  			})
  		}
 diff --git a/polycube/polycube.go b/polycube/polycube.go
-index 8b42d05..7292495 100644
+index 8b42d05..ad3418b 100644
 --- a/polycube/polycube.go
 +++ b/polycube/polycube.go
 @@ -20,16 +20,17 @@ import (
@@ -9014,7 +9121,66 @@ index 8b42d05..7292495 100644
  	}
  
  	// creating internal lbrp
-@@ -171,11 +174,13 @@ func createRouter() error {
+@@ -146,23 +149,44 @@ func createRouter() error {
+ 		Mask: net.IPMask{255, 255, 255, 255}, //  /32 for allowing communication only with processes listening on the node physical interface
+ 	}
+ 
+-	routes := []router.Route{
+-		{ // default route through node gateway
++	routes := []router.Route{}
++
++	if !node.Env.IsDefaultGwDifferentThenExtIface {
++		routes = append(routes, router.Route{
+ 			Network:    "0.0.0.0/0",
+ 			Nexthop:    nodeGwIPStr,
+ 			Interface_: conf.rToElbPortName,
+-		},
+-		{ // traffic for vpod address must go towards the k8sdispatcher
+-			Network:    node.Conf.VPodIPNet.String(),
+-			Nexthop:    nodeGwIPStr,
+-			Interface_: conf.rToElbPortName,
+-		},
+-		{ // traffic for node physical interface address must go towards the veth host end
+-			Network:    nodeIPNet.String(),
+-			Nexthop:    node.Conf.PolykubeVeth.Host.IPNet.IP.String(),
+-			Interface_: conf.rToHostPortName,
+-		},
+-	}
++		})
++	}
++	routes = append(routes, router.Route{
++		// traffic for vpod address must go towards the k8sdispatcher
++		Network:    node.Conf.VPodIPNet.String(),
++		Nexthop:    nodeGwIPStr,
++		Interface_: conf.rToElbPortName,
++	})
++	routes = append(routes, router.Route{
++		// traffic for node physical interface address must go towards the veth host end
++		Network:    nodeIPNet.String(),
++		Nexthop:    node.Conf.PolykubeVeth.Host.IPNet.IP.String(),
++		Interface_: conf.rToHostPortName,
++	})
++	// routes := []router.Route{
++	// 	{ // default route through node gateway
++	// 		Network:    "0.0.0.0/0",
++	// 		Nexthop:    nodeGwIPStr,
++	// 		Interface_: conf.rToElbPortName,
++	// 	},
++	// 	{ // traffic for vpod address must go towards the k8sdispatcher
++	// 		Network:    node.Conf.VPodIPNet.String(),
++	// 		Nexthop:    nodeGwIPStr,
++	// 		Interface_: conf.rToElbPortName,
++	// 	},
++	// 	{ // traffic for node physical interface address must go towards the veth host end
++	// 		Network:    nodeIPNet.String(),
++	// 		Nexthop:    node.Conf.PolykubeVeth.Host.IPNet.IP.String(),
++	// 		Interface_: conf.rToHostPortName,
++	// 	},
++	// }
+ 	arptable := []router.ArpTable{
+ 		{
+ 			Address:    nodeGwIPStr,
+@@ -171,11 +195,13 @@ func createRouter() error {
  		},
  	}
  	r := router.Router{
@@ -9033,7 +9199,7 @@ index 8b42d05..7292495 100644
  	}
  
  	// creating router
-@@ -207,10 +212,12 @@ func createExtLbrp() error {
+@@ -207,10 +233,12 @@ func createExtLbrp() error {
  
  	elbPorts := []lbrp.Ports{elbToRPort, elbToKPort}
  	elb := lbrp.Lbrp{
@@ -9050,7 +9216,7 @@ index 8b42d05..7292495 100644
  	}
  
  	// creating external lbrp
-@@ -251,6 +258,8 @@ func createK8sDispatcher() error {
+@@ -251,6 +279,8 @@ func createK8sDispatcher() error {
  		Ports:         kPorts,
  		InternalSrcIp: node.Conf.VPodIPNet.IP.String(),
  		NodeportRange: node.Env.NodePortRange,
@@ -9059,7 +9225,7 @@ index 8b42d05..7292495 100644
  	}
  
  	// creating k8s dispatcher
-@@ -541,19 +550,20 @@ func EnsureConnection() error {
+@@ -541,19 +571,20 @@ func EnsureConnection() error {
  func InitConf() {
  	ec := node.Env
  	conf = &configuration{
