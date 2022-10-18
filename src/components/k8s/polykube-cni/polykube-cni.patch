@@ -9078,7 +9078,7 @@ index 2e8d79e..1ec1c25 100644
  			})
  		}
 diff --git a/polycube/polycube.go b/polycube/polycube.go
-index 8b42d05..ad3418b 100644
+index 8b42d05..12554e4 100644
 --- a/polycube/polycube.go
 +++ b/polycube/polycube.go
 @@ -20,16 +20,17 @@ import (
@@ -9121,7 +9121,7 @@ index 8b42d05..ad3418b 100644
  	}
  
  	// creating internal lbrp
-@@ -146,23 +149,44 @@ func createRouter() error {
+@@ -146,36 +149,65 @@ func createRouter() error {
  		Mask: net.IPMask{255, 255, 255, 255}, //  /32 for allowing communication only with processes listening on the node physical interface
  	}
  
@@ -9146,7 +9146,16 @@ index 8b42d05..ad3418b 100644
 -			Interface_: conf.rToHostPortName,
 -		},
 -	}
+-	arptable := []router.ArpTable{
+-		{
+-			Address:    nodeGwIPStr,
+-			Mac:        nodeGwMACStr,
+-			Interface_: conf.rToElbPortName,
+-		},
 +		})
++	} else {
++		nodeGwIPStr = node.Conf.ExtIface.IPNet.IP.String()
++		nodeGwMACStr = node.Conf.ExtIface.Link.Attrs().HardwareAddr.String()
 +	}
 +	routes = append(routes, router.Route{
 +		// traffic for vpod address must go towards the k8sdispatcher
@@ -9177,11 +9186,15 @@ index 8b42d05..ad3418b 100644
 +	// 		Interface_: conf.rToHostPortName,
 +	// 	},
 +	// }
- 	arptable := []router.ArpTable{
- 		{
- 			Address:    nodeGwIPStr,
-@@ -171,11 +195,13 @@ func createRouter() error {
- 		},
++	arptable := []router.ArpTable{}
++	if !node.Env.IsDefaultGwDifferentThenExtIface {
++		arptable = []router.ArpTable{
++			{
++				Address:    nodeGwIPStr,
++				Mac:        nodeGwMACStr,
++				Interface_: conf.rToElbPortName,
++			},
++		}
  	}
  	r := router.Router{
 -		Name:     rName,
@@ -9199,7 +9212,7 @@ index 8b42d05..ad3418b 100644
  	}
  
  	// creating router
-@@ -207,10 +233,12 @@ func createExtLbrp() error {
+@@ -207,10 +239,12 @@ func createExtLbrp() error {
  
  	elbPorts := []lbrp.Ports{elbToRPort, elbToKPort}
  	elb := lbrp.Lbrp{
@@ -9216,7 +9229,7 @@ index 8b42d05..ad3418b 100644
  	}
  
  	// creating external lbrp
-@@ -251,6 +279,8 @@ func createK8sDispatcher() error {
+@@ -251,6 +285,8 @@ func createK8sDispatcher() error {
  		Ports:         kPorts,
  		InternalSrcIp: node.Conf.VPodIPNet.IP.String(),
  		NodeportRange: node.Env.NodePortRange,
@@ -9225,7 +9238,7 @@ index 8b42d05..ad3418b 100644
  	}
  
  	// creating k8s dispatcher
-@@ -541,19 +571,20 @@ func EnsureConnection() error {
+@@ -541,19 +577,20 @@ func EnsureConnection() error {
  func InitConf() {
  	ec := node.Env
  	conf = &configuration{
