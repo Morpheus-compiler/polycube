@@ -62,6 +62,22 @@ install_golang() {
 fi
 }
 
+install_golang_latest() {
+  pushd .
+  mkdir -p /tmp/golang
+  cd /tmp/golang
+  wget https://go.dev/dl/go1.19.2.linux-amd64.tar.gz
+  $SUDO rm -rf /usr/local/go &> /dev/null
+  $SUDO tar -C /usr/local -xzf go1.19.2.linux-amd64.tar.gz
+
+  if [[ ":$PATH:" == *":/usr/local/go/bin:"* ]]; then
+    return
+  else
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.profile
+    export PATH=$PATH:/usr/local/go/bin
+  fi
+}
+
 install_helm() {
   if ! command -v helm &> /dev/null; then
     wget https://get.helm.sh/helm-v3.10.0-linux-amd64.tar.gz -P /tmp/helm
@@ -81,7 +97,8 @@ $SUDO apt update && $SUDO apt install jq -y
 
 install_kubeadm
 install_docker
-install_golang
+# install_golang
+install_golang_latest
 install_helm
 
 $SUDO swapoff -a
