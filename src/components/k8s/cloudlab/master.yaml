@@ -1,0 +1,26 @@
+- hosts: master
+  become: yes
+  tasks:
+    - name: remove swap
+      shell: "swapoff -a"
+
+    - name: initialize the cluster
+      shell: kubeadm init --pod-network-cidr=192.168.0.0/16 >> cluster_initialized.txt
+      args:
+        chdir: $HOME
+        creates: cluster_initialized.txt
+
+    - name: create .kube directory
+      become: yes
+      become_user: smiano
+      file:
+        path: $HOME/.kube
+        state: directory
+        mode: 0755
+
+    - name: copy admin.conf to user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/smiano/.kube/config
+        remote_src: yes
+        owner: smiano
