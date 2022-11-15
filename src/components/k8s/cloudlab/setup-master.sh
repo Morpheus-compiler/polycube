@@ -75,6 +75,7 @@ install_k8s_deps() {
     wget -nc ${INSTALL_K8S_SCRIPT_URL} -P /local/
     chmod +x /local/${INSTALL_K8S_SCRIPT}
     /local/${INSTALL_K8S_SCRIPT}
+    source $HOME/.profile
     popd
 }
 

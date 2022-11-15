@@ -107,6 +107,7 @@ $SUDO swapoff -a
 if [[ -z "${GOPATH}" ]]; then
   mkdir -p $HOME/go
   export GOPATH=$HOME/go
+  echo 'export GOPATH=$HOME/go' >> $HOME/.profile
 fi
 
 echo -e "${COLOR_GREE}[ INFO ] Installation completed, now you can run your k8s cluster ${COLOR_OFF}"
