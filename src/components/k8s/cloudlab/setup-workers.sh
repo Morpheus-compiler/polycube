@@ -72,6 +72,9 @@ install_ssh_keys() {
     popd
 }
 
+$SUDO mkdir -p /local 
+$SUDO chown -R smiano:$(id -g) /local
+
 install_k8s_deps
 
 $SUDO chown -R smiano:$(id -g) /local

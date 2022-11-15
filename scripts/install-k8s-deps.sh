@@ -66,6 +66,7 @@ fi
 
 install_golang_latest() {
   pushd .
+  rm -rf /tmp/golang &> /dev/null
   mkdir -p /tmp/golang
   cd /tmp/golang
   wget https://go.dev/dl/go1.19.2.linux-amd64.tar.gz

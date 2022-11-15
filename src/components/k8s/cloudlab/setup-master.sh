@@ -71,7 +71,6 @@ $SUDO bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -yq $PACKAGES"
 
 install_k8s_deps() {
     pushd .
-    mkdir -p /local 
     wget -nc ${INSTALL_K8S_SCRIPT_URL} -P /local/
     chmod +x /local/${INSTALL_K8S_SCRIPT}
     /local/${INSTALL_K8S_SCRIPT}
@@ -179,14 +178,16 @@ generate_ansible_host_file() {
     popd 
 }
 
+$SUDO mkdir -p /local 
+$SUDO chown -R smiano:$(id -g) /local
+mkdir -p /var/log/polycube
+$SUDO chown -R smiano:$(id -g) /var/log/polycube
+
 install_k8s_deps
 install_polykube_cni
 install_polycubectl
 install_k8s_bench_suite
 
-$SUDO chown -R smiano:$(id -g) /local
-mkdir -p /var/log/polycube
-$SUDO chown -R smiano:$(id -g) /var/log/polycube
 $SUDO cp /local/polycube/src/components/k8s/polykube-cni/enable-morpheus-all-nodes.sh /usr/local/bin/enable-morpheus-all-nodes
 
 install_bpftool
