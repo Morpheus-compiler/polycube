@@ -1,0 +1,21 @@
+- hosts: all
+  become: yes
+  tasks:
+    - name: Run kubeadm reset
+      shell: kubeadm reset -f
+
+    - name: get user home directory
+      shell: >
+             getent passwd smiano | awk -F: '{ print $6 }'
+      changed_when: false
+      register: user_home
+
+    - name: debug output
+      debug:
+        var: user_home.stdout
+
+    - name: Cleanup home
+      shell: "rm -rf {{ user_home.stdout }}/.kube"
+
+    - name: Reset CNI config
+      shell: rm -rf /etc/cni/net.d
