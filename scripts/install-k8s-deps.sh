@@ -31,6 +31,8 @@ install_kubeadm() {
 install_docker() {
     echo -e "${COLOR_GREE}[ INFO ] Installing Docker runtime ${COLOR_OFF}"
     $SUDO apt remove -y docker docker-engine docker.io containerd runc
+    $SUDO rm -rf /etc/apt/keyrings/docker.gpg
+    
     $SUDO apt update
     $SUDO apt install -y ca-certificates curl gnupg lsb-release
 
