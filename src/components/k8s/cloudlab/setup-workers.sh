@@ -83,3 +83,12 @@ $SUDO chown -R smiano:$(id -g) /var/log/polycube
 
 install_bpftool
 install_ssh_keys
+
+if grep -q "swapoff" "$HOME/.profile"; then
+    echo "Swap already disabled"
+    exit 0
+else
+    echo "sudo swapoff -a" >> $HOME/.profile
+fi
+
+source $HOME/.profile

@@ -196,3 +196,12 @@ install_ssh_keys
 ip_addr=$2
 
 generate_ansible_host_file $1 $ip_addr
+
+if grep -q "swapoff" "$HOME/.profile"; then
+    echo "Swap already disabled"
+    exit 0
+else
+    echo "sudo swapoff -a" >> $HOME/.profile
+fi
+
+source $HOME/.profile
