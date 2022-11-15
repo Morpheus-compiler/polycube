@@ -5,7 +5,7 @@
       shell: "swapoff -a"
 
     - name: initialize the cluster
-      shell: kubeadm init --pod-network-cidr=192.168.0.0/16 >> cluster_initialized.txt
+      shell: "kubeadm init --pod-network-cidr=192.168.0.0/16 --apiserver-advertise-address={{ master_ip | default('10.10.10.1') }} >> cluster_initialized.txt"
       args:
         chdir: $HOME
         creates: cluster_initialized.txt
