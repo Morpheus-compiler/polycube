@@ -17,12 +17,20 @@
         path: $HOME/.kube
         state: directory
         mode: 0755
+      
+    - name: get user home directory
+      shell: >
+             getent passwd smiano | awk -F: '{ print $6 }'
+      changed_when: false
+      register: user_home
+
+    - name: debug output
+      debug:
+        var: user_home.stdout
 
     - name: copy admin.conf to user's kube config
-      become: yes
-      become_user: smiano
       copy:
         src: /etc/kubernetes/admin.conf
-        dest: $HOME/.kube/config
+        dest: "{{ user_home.stdout }}/.kube/config"
         remote_src: yes
         owner: smiano

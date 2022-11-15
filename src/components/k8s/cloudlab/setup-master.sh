@@ -175,6 +175,7 @@ generate_ansible_host_file() {
     echo "" >> /local/kube-cluster/hosts
     echo "[all:vars]" >> /local/kube-cluster/hosts
     echo "ansible_python_interpreter=/usr/bin/python3" >> /local/kube-cluster/hosts
+    echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> /local/kube-cluster/hosts
     popd 
 }
 
