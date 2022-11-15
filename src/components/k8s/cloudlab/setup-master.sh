@@ -112,13 +112,13 @@ install_bpftool() {
 
 install_ssh_keys() {
     pushd .
-    # Create the user SSH directory, just in case.
-    mkdir $HOME/.ssh && chmod 700 $HOME/.ssh
 
     if [[ -f "$HOME/.ssh/id_rsa" ]]; then
         echo "id_rsa file already exists"
         return
     fi
+    # Create the user SSH directory, just in case.
+    mkdir $HOME/.ssh && chmod 700 $HOME/.ssh
 
     # Retrieve the server-generated RSA private key.
     geni-get key > $HOME/.ssh/id_rsa
@@ -144,6 +144,8 @@ nextip(){
 generate_ansible_host_file() {
     local num_nodes=$1
     local ip_master=$2
+
+    num_nodes=$((num_nodes-1))
 
     pushd .
     mkdir -p /local/kube-cluster
@@ -190,9 +192,3 @@ install_ssh_keys
 ip_addr=$2
 
 generate_ansible_host_file $1 $ip_addr
-
-wget -N ${ANSIBLE_MASTER_URL} -P /local/kube-cluster/
-ansible-playbook -i /local/kube-cluster/hosts /local/kube-cluster/master.yaml
-
-wget -N ${ANSIBLE_WORKERS_URL} -P /local/kube-cluster/
-ansible-playbook -i /local/kube-cluster/hosts /local/kube-cluster/workers.yaml

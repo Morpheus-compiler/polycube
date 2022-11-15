@@ -48,6 +48,12 @@ install_bpftool() {
 
 install_ssh_keys() {
     pushd .
+
+    if [[ -f "$HOME/.ssh/id_rsa" ]]; then
+        echo "id_rsa file already exists"
+        return
+    fi
+
     # Create the user SSH directory, just in case.
     mkdir $HOME/.ssh && chmod 700 $HOME/.ssh
 
