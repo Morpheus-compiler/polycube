@@ -205,3 +205,5 @@ else
 fi
 
 source $HOME/.profile
+$SUDO systemctl daemon-reload
+$SUDO systemctl restart kubelet
