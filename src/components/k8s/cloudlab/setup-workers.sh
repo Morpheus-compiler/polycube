@@ -10,7 +10,7 @@ BPFTOOL_GIT_REPO="https://github.com/libbpf/bpftool.git"
 [ -z ${SUDO+x} ] && SUDO='sudo'
 
 PACKAGES="git cmake"
-PACKAGES+="linux-generic-hwe-20.04"
+PACKAGES+=" linux-generic-hwe-20.04"
 PACKAGES+=" libelf-dev zlib1g-dev libbfb0-dev libcap-dev"
 PACKAGES+=" clang llvm llvm-dev"
 PACKAGES+=" software-properties-common ansible"
