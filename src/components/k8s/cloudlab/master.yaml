@@ -19,6 +19,8 @@
         mode: 0755
 
     - name: copy admin.conf to user's kube config
+      become: yes
+      become_user: smiano
       copy:
         src: /etc/kubernetes/admin.conf
         dest: $HOME/.kube/config
