@@ -41,7 +41,7 @@ install_polycubectl() {
 
 install_bpftool() {
     pushd .
-    git clone --recurse-submodules ${BPFTOOL_GIT_REPO} /local/
+    git clone --recurse-submodules ${BPFTOOL_GIT_REPO} /local/bpftool
     cd bpftool/src
     make
     $SUDO make install
