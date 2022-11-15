@@ -166,7 +166,7 @@ generate_ansible_host_file() {
         for i in $(seq 1 $num_nodes); do
             IP=$(nextip $IP)
             echo $IP
-            echo "worker${i} ansible_host=${ip} ansible_user=${ANSIBLE_USER}" >> /local/kube-cluster/hosts
+            echo "worker${i} ansible_host=${IP} ansible_user=${ANSIBLE_USER}" >> /local/kube-cluster/hosts
         done
     fi
 
