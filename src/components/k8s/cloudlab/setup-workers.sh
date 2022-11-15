@@ -1,7 +1,7 @@
 #!/bin/bash
 
 INSTALL_K8S_SCRIPT="install-k8s-deps.sh"
-INSTALL_K8S_SCRIPT_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/scripts/${INSATLL_K8S_SCRIPT}"
+INSTALL_K8S_SCRIPT_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/scripts/${INSTALL_K8S_SCRIPT}"
 
 POLYCUBE_GIT_REPO="https://github.com/Morpheus-compiler/polycube.git"
 
@@ -11,11 +11,12 @@ BPFTOOL_GIT_REPO="https://github.com/libbpf/bpftool.git"
 
 PACKAGES="git cmake"
 PACKAGES+="linux-generic-hwe-20.04"
-PACKAGES+=" libelf zlib libbfd libcap"
+PACKAGES+=" libelf-dev zlib1g-dev libbfb0-dev libcap-dev"
 PACKAGES+=" clang llvm llvm-dev"
 PACKAGES+=" software-properties-common ansible"
 
 $SUDO apt update 
+$SUDO apt upgrade -y
 
 $SUDO bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -yq $PACKAGES"
 
