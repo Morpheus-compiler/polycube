@@ -21,3 +21,12 @@
       args:
         chdir: $HOME
         creates: node_joined.txt
+
+- hosts: all
+  become: yes
+  tasks:
+    - name: use local ips
+      shell: "/local/use-local-ips.sh {{ hostvars[inventory_hostname]['ansible_env'].SSH_CONNECTION.split(' ')[2] }} >> node_local_ip.txt"
+      args:
+        chdir: $HOME
+        creates: node_local_ip.txt
