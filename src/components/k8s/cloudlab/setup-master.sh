@@ -17,20 +17,21 @@ function valid_ip()
     return $stat
 }
 
-if [ $# -ne 2 ]; then
+if [ $# -ne 3 ]; then
     echo "No arguments supplied"
-    echo "The first argument should be the number of worker nodes"
-    echo "The second argument should be the address of the master"
+    echo "The first argument should be the user"
+    echo "The second argument should be the number of worker nodes"
+    echo "The third argument should be the address of the master"
     exit 1
 fi
 
 re='^[0-9]+$'
-if ! [[ $1 =~ $re ]] ; then
+if ! [[ $2 =~ $re ]] ; then
    echo "error: First argument is not a number" >&2
    exit 1
 fi
 
-ip_addr=$2
+ip_addr=$3
 
 if valid_ip $ip_addr; then
     echo "IP is valid"
@@ -39,6 +40,12 @@ else
     exit 1
 fi
 
+USER_HOME=$(getent passwd $1 | awk -F: '{ print $6 }')
+
+if [ -z "${USER_HOME}" ]; then
+    echo "Unknown user $1"
+    exit 1
+fi
 
 INSTALL_K8S_SCRIPT="install-k8s-deps.sh"
 INSTALL_K8S_SCRIPT_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/scripts/${INSTALL_K8S_SCRIPT}"
@@ -74,7 +81,7 @@ install_k8s_deps() {
     wget -nc ${INSTALL_K8S_SCRIPT_URL} -P /local/
     chmod +x /local/${INSTALL_K8S_SCRIPT}
     /local/${INSTALL_K8S_SCRIPT}
-    source $HOME/.profile
+    source $USER_HOME/.profile
     popd
 }
 
@@ -114,23 +121,29 @@ install_bpftool() {
 install_ssh_keys() {
     pushd .
 
-    if [[ -f "$HOME/.ssh/id_rsa" ]]; then
-        echo "id_rsa file already exists"
+    if [[ -f "$USER_HOME/.ssh/ansible" ]]; then
+        echo "ansible key file already exists"
         return
     fi
+
+    if ! command -v geni-get &> /dev/null; then
+        echo "Command geni-get not available"
+        return
+    fi
+    
     # Create the user SSH directory, just in case.
-    mkdir $HOME/.ssh && chmod 700 $HOME/.ssh
+    mkdir $USER_HOME/.ssh && chmod 700 $USER_HOME/.ssh
 
     # Retrieve the server-generated RSA private key.
-    geni-get key > $HOME/.ssh/id_rsa
-    chmod 600 $HOME/.ssh/id_rsa
+    geni-get key > $USER_HOME/.ssh/ansible
+    chmod 600 $USER_HOME/.ssh/ansible
 
     # Derive the corresponding public key portion.
-    ssh-keygen -y -f $HOME/.ssh/id_rsa > $HOME/.ssh/id_rsa.pub
+    ssh-keygen -y -f $USER_HOME/.ssh/ansible > $USER_HOME/.ssh/ansible.pub
 
     # If you want to permit login authenticated by the auto-generated key,
     # then append the public half to the authorized_keys file:
-    grep -q -f $HOME/.ssh/id_rsa.pub $HOME/.ssh/authorized_keys || cat $HOME/.ssh/id_rsa.pub >> $HOME/.ssh/authorized_keys
+    grep -q -f $USER_HOME/.ssh/ansible.pub $USER_HOME/.ssh/authorized_keys || cat $USER_HOME/.ssh/ansible.pub >> $USER_HOME/.ssh/authorized_keys
     popd
 }
 
@@ -175,6 +188,7 @@ generate_ansible_host_file() {
     echo "[all:vars]" >> /local/kube-cluster/hosts
     echo "ansible_python_interpreter=/usr/bin/python3" >> /local/kube-cluster/hosts
     echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> /local/kube-cluster/hosts
+    echo "ansible_ssh_private_key_file=$USER_HOME/.ssh/ansible" >> /local/kube-cluster/hosts
     popd 
 }
 
@@ -193,17 +207,17 @@ $SUDO cp /local/polycube/src/components/k8s/polykube-cni/enable-morpheus-all-nod
 install_bpftool
 install_ssh_keys
 
-ip_addr=$2
+ip_addr=$3
 
-generate_ansible_host_file $1 $ip_addr
+generate_ansible_host_file $2 $ip_addr
 
-if grep -q "swapoff" "$HOME/.profile"; then
+if grep -q "swapoff" "$USER_HOME/.profile"; then
     echo "Swap already disabled"
     exit 0
 else
-    echo "sudo swapoff -a" >> $HOME/.profile
+    echo "sudo swapoff -a" >> $USER_HOME/.profile
 fi
 
-source $HOME/.profile
+source $USER_HOME/.profile
 $SUDO systemctl daemon-reload
 $SUDO systemctl restart kubelet
