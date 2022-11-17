@@ -309,14 +309,14 @@ get_prometheus_cpp() {
   cd "$WORKDIR"
   echo -e "${COLOR_GREEN}[ INFO ] Downloading prometheus CPP ${COLOR_OFF}"
   mkdir -p "$PROMETHEUS_DIR"
-  wget https://github.com/jupp0r/prometheus-cpp/releases/download/v1.0.0/prometheus-cpp-with-submodules.tar.gz
+  wget https://github.com/jupp0r/prometheus-cpp/releases/download/v1.1.0/prometheus-cpp-with-submodules.tar.gz
   tar xf prometheus-cpp-with-submodules.tar.gz -C prometheus --strip-components 1
   rm prometheus-cpp-with-submodules.tar.gz
   echo -e "${COLOR_GREEN}[ INFO ] Building prometheus CPP ${COLOR_OFF}"
   mkdir -p "$PROMETHEUS_BUILD_DIR"
   cd "$PROMETHEUS_BUILD_DIR"
 
-  cmake .. -DBUILD_SHARED_LIBS=OFF -DENABLE_PUSH=OFF -DENABLE_COMPRESSION=OFF
+  cmake .. -DBUILD_SHARED_LIBS=OFF -DENABLE_PUSH=OFF -DENABLE_COMPRESSION=OFF -DENABLE_TESTING=OFF
   make -j $(getconf _NPROCESSORS_ONLN)
   $SUDO make install
   echo -e "${COLOR_GREEN}prometheus CPP is installed ${COLOR_OFF}"
