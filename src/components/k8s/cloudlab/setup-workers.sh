@@ -1,8 +1,9 @@
 #!/bin/bash
 
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     echo "No arguments supplied"
     echo "The first argument should be the user"
+    echo "[Optional] The second argument is the path where to install all the services"
     exit 1
 fi
 
@@ -11,6 +12,11 @@ USER_HOME=$(getent passwd $1 | awk -F: '{ print $6 }')
 if [ -z "${USER_HOME}" ]; then
     echo "Unknown user $1"
     exit 1
+fi
+
+DEPS_PATH="/local"
+if [ ! -z "$2" ]; then
+    DEPS_PATH="$2"
 fi
 
 INSTALL_K8S_SCRIPT="install-k8s-deps.sh"
@@ -35,18 +41,18 @@ $SUDO bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -yq $PACKAGES"
 
 install_k8s_deps() {
     pushd .
-    mkdir -p /local 
-    wget -nc ${INSTALL_K8S_SCRIPT_URL} -P /local/
-    chmod +x /local/${INSTALL_K8S_SCRIPT}
-    /local/${INSTALL_K8S_SCRIPT}
+    mkdir -p ${DEPS_PATH} 
+    wget -nc ${INSTALL_K8S_SCRIPT_URL} -P ${DEPS_PATH}/
+    chmod +x ${DEPS_PATH}/${INSTALL_K8S_SCRIPT}
+    ${DEPS_PATH}/${INSTALL_K8S_SCRIPT}
     source ${USER_HOME}/.profile
     popd
 }
 
 install_polycubectl() {
     pushd .
-    git clone --branch morpheus-k8s ${POLYCUBE_GIT_REPO} /local/polycube
-    cd /local/polycube/src/polycubectl 
+    git clone --branch morpheus-k8s ${POLYCUBE_GIT_REPO} ${DEPS_PATH}/polycube
+    cd ${DEPS_PATH}/polycube/src/polycubectl 
     cmake . 
     $SUDO ./install.sh
     popd
@@ -54,8 +60,8 @@ install_polycubectl() {
 
 install_bpftool() {
     pushd .
-    git clone --recurse-submodules ${BPFTOOL_GIT_REPO} /local/bpftool
-    cd bpftool/src
+    git clone --recurse-submodules ${BPFTOOL_GIT_REPO} ${DEPS_PATH}/bpftool
+    cd ${DEPS_PATH}/bpftool/src
     make
     $SUDO make install
     popd
@@ -90,12 +96,12 @@ install_ssh_keys() {
     popd
 }
 
-$SUDO mkdir -p /local 
-$SUDO chown -R smiano:$(id -g) /local
+$SUDO mkdir -p ${DEPS_PATH} 
+$SUDO chown -R smiano:$(id -g) ${DEPS_PATH}
 
 install_k8s_deps
 
-$SUDO chown -R smiano:$(id -g) /local
+$SUDO chown -R smiano:$(id -g) ${DEPS_PATH}
 mkdir -p /var/log/polycube
 $SUDO chown -R smiano:$(id -g) /var/log/polycube
 
