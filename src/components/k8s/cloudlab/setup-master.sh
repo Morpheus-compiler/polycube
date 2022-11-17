@@ -1,5 +1,7 @@
 #!/bin/bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 function valid_ip()
 {
     local  ip=$1
@@ -64,6 +66,8 @@ POLYCUBE_GIT_REPO="https://github.com/Morpheus-compiler/polycube.git"
 K8S_BENCH_SUITE_GIT_REPO="https://github.com/sebymiano/k8s-bench-suite.git"
 
 BPFTOOL_GIT_REPO="https://github.com/libbpf/bpftool.git"
+BPFTOOL_PATCH="bpftool-link.patch"
+BPFTOOL_PATCH_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/src/components/k8s/cloudlab/${BPFTOOL_PATCH}"
 
 ANSIBLE_MASTER_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/src/components/k8s/cloudlab/master.yaml"
 ANSIBLE_WORKERS_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/src/components/k8s/cloudlab/workers.yaml"
@@ -119,6 +123,8 @@ install_bpftool() {
     pushd .
     git clone --recurse-submodules ${BPFTOOL_GIT_REPO} ${DEPS_PATH}/bpftool
     cd ${DEPS_PATH}/bpftool/src
+    wget -O ${BPFTOOL_PATCH_URL}
+    git apply ${BPFTOOL_PATCH}
     make
     $SUDO make install
     popd

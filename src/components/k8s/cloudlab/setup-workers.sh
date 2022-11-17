@@ -25,6 +25,8 @@ INSTALL_K8S_SCRIPT_URL="https://raw.githubusercontent.com/Morpheus-compiler/poly
 POLYCUBE_GIT_REPO="https://github.com/Morpheus-compiler/polycube.git"
 
 BPFTOOL_GIT_REPO="https://github.com/libbpf/bpftool.git"
+BPFTOOL_PATCH="bpftool-link.patch"
+BPFTOOL_PATCH_URL="https://raw.githubusercontent.com/Morpheus-compiler/polycube/morpheus-k8s/src/components/k8s/cloudlab/${BPFTOOL_PATCH}"
 
 [ -z ${SUDO+x} ] && SUDO='sudo'
 
@@ -62,6 +64,8 @@ install_bpftool() {
     pushd .
     git clone --recurse-submodules ${BPFTOOL_GIT_REPO} ${DEPS_PATH}/bpftool
     cd ${DEPS_PATH}/bpftool/src
+    wget -O ${BPFTOOL_PATCH_URL}
+    git apply ${BPFTOOL_PATCH}
     make
     $SUDO make install
     popd
