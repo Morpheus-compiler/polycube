@@ -93,7 +93,10 @@ COPY --from=builder /polycube/src/components/k8s/polykube-cni/save_context.sh /
 COPY --from=builder /polycube/src/components/k8s/polykube-cni/start_polycubed.sh /
 
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get -yq install linux-headers-$(uname -r) psmisc procps iproute2
+    DEBIAN_FRONTEND=noninteractive apt-get -yq install linux-headers-$(uname -r) \
+    linux-headers-5.4.0-132-generic \ 
+    linux-headers-5.15.0-53-generic \
+    psmisc procps iproute2
 
 # by running nsenter --mount=/host/proc/1/ns/mnt polycubed, the daemon has a complete view of the namespaces of the host and it is able to manipulate them (needed for shadow services)
 CMD ["nsenter","--mount=/host/proc/1/ns/mnt","polycubed"]

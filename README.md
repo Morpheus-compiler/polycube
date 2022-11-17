@@ -23,7 +23,7 @@ For more information, jump to the project [Documentation](https://polycube-netwo
 You can use the following command to build the container.
 
 ```
-DOCKER_BUILDKIT=1 docker build --build-arg DEFAULT_MODE=pcn-k8s --build-arg DEFAULT_CLONE_MODE=git -t morpheus-k8s:latest .
+DOCKER_BUILDKIT=1 docker build --no-cache --build-arg DEFAULT_MODE=morpheus-k8s --build-arg DEFAULT_CLONE_MODE=git -t morpheuscompiler/morpheus-polycube-k8s:latest .
 ```
 
 ## Licence
