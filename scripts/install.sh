@@ -108,7 +108,8 @@ fi
 rm -rf build
 mkdir -p build && cd build
 
-CMAKE_CMD="cmake .. -DCMAKE_C_COMPILER=/usr/bin/gcc-10 \
+CMAKE_CMD="cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local \
+                    -DCMAKE_C_COMPILER=/usr/bin/gcc-10 \
                     -DCMAKE_CXX_COMPILER=/usr/bin/g++-10 \
                     -DLLVM_DIR="${WORKDIR}"/clang+llvm10/lib/cmake/llvm"
 
