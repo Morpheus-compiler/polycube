@@ -59,6 +59,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # copying binaries
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /usr/local/share/polycube /usr/local/share/polycube
+COPY --from=builder /sbin/modprobe /sbin/modprobe
 # copying polycube services
 COPY --from=builder /usr/lib/lib*.so /usr/lib/
 # copying libpistache libyang libtins libprometheus .so
@@ -97,6 +98,12 @@ RUN apt-get update && \
     linux-headers-5.4.0-132-generic \ 
     linux-headers-5.15.0-53-generic \
     psmisc procps iproute2
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt install software-properties-common -y && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test -y && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install gcc-9 libstdc++6 -y
 
 # by running nsenter --mount=/host/proc/1/ns/mnt polycubed, the daemon has a complete view of the namespaces of the host and it is able to manipulate them (needed for shadow services)
 CMD ["nsenter","--mount=/host/proc/1/ns/mnt","polycubed"]
