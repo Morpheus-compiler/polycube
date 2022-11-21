@@ -30,3 +30,12 @@
       args:
         chdir: $HOME
         creates: node_local_ip.txt
+
+- hosts: all
+  become: yes
+  tasks:
+    - name: Set CPU frequency
+      shell: "{{ cpu_freq_path | default('/local/') }}set_cpu_freq.sh >> set_cpu_freq.txt"
+      args:
+        chdir: $HOME
+        creates: set_cpu_freq.txt
