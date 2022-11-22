@@ -108,7 +108,7 @@ $SUDO chown -R smiano:$(id -g) ${DEPS_PATH}
 install_k8s_deps
 
 $SUDO chown -R smiano:$(id -g) ${DEPS_PATH}
-mkdir -p /var/log/polycube
+$SUDO mkdir -p /var/log/polycube
 $SUDO chown -R smiano:$(id -g) /var/log/polycube
 
 install_bpftool
