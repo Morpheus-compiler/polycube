@@ -47,8 +47,8 @@ install_k8s_deps() {
     wget -nc ${INSTALL_K8S_SCRIPT_URL} -P ${DEPS_PATH}/
     chmod +x ${DEPS_PATH}/${INSTALL_K8S_SCRIPT}
     ${DEPS_PATH}/${INSTALL_K8S_SCRIPT}
-    source ${USER_HOME}/.profile
-    echo 'export PATH=$PATH:/usr/local/go/bin' >> /root/.profile
+    source ${USER_HOME}/.bashrc
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> /root/.bashrc
     export PATH=$PATH:/usr/local/go/bin
     popd
 }
@@ -114,13 +114,13 @@ $SUDO chown -R smiano:$(id -g) /var/log/polycube
 install_bpftool
 install_ssh_keys
 
-if grep -q "swapoff" "${USER_HOME}/.profile"; then
+if grep -q "swapoff" "${USER_HOME}/.bashrc"; then
     echo "Swap already disabled"
     exit 0
 else
-    echo "sudo swapoff -a" >> ${USER_HOME}/.profile
+    echo "sudo swapoff -a" >> ${USER_HOME}/.bashrc
 fi
 
-source ${USER_HOME}/.profile
+source ${USER_HOME}/.bashrc
 $SUDO systemctl daemon-reload
 $SUDO systemctl restart kubelet

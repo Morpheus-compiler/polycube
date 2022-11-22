@@ -76,7 +76,7 @@ install_golang_latest() {
   if [[ ":$PATH:" == *":/usr/local/go/bin:"* ]]; then
     return
   else
-    echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.profile
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.bashrc
     export PATH=$PATH:/usr/local/go/bin
   fi
 }
@@ -110,7 +110,7 @@ $SUDO swapoff -a
 if [[ -z "${GOPATH}" ]]; then
   mkdir -p $HOME/go
   export GOPATH=$HOME/go
-  echo 'export GOPATH=$HOME/go' >> $HOME/.profile
+  echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc
 fi
 
 echo -e "${COLOR_GREE}[ INFO ] Installation completed, now you can run your k8s cluster ${COLOR_OFF}"
