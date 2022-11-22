@@ -15,7 +15,37 @@
         var: user_home.stdout
 
     - name: Cleanup home
-      shell: "rm -rf {{ user_home.stdout }}/.kube"
+      ansible.builtin.file:
+        path: "{{ user_home.stdout }}/.kube"
+        state: "absent"
 
     - name: Reset CNI config
-      shell: rm -rf /etc/cni/net.d
+      ansible.builtin.file:
+        path: "/etc/cni/net.d"
+        state: "absent"
+
+    - name: Clean up node_local_ip
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/node_local_ip.txt"
+        state: "absent"
+
+    - name: Clean up disable_ht
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/disable_ht.txt"
+        state: "absent"
+    
+- hosts: master
+  become: yes
+  tasks:
+    - name: Clean up cluster initialized
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/cluster_initialized.txt"
+        state: "absent"
+
+- hosts: workers
+  become: yes
+  tasks:
+    - name: Clean up node_joined
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/node_joined.txt"
+        state: "absent"

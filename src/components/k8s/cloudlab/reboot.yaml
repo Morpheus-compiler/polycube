@@ -1,0 +1,6 @@
+- hosts: workers
+  become: yes
+  tasks:
+    - name: Unconditionally reboot the machine with all defaults
+      reboot:
+        reboot_timeout: 1
