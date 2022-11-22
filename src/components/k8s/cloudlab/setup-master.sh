@@ -92,6 +92,8 @@ install_k8s_deps() {
     chmod +x ${DEPS_PATH}/${INSTALL_K8S_SCRIPT}
     ${DEPS_PATH}/${INSTALL_K8S_SCRIPT}
     source $USER_HOME/.profile
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.profile
+    export PATH=$PATH:/usr/local/go/bin
     popd
 }
 
