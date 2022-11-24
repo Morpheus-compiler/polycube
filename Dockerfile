@@ -19,7 +19,7 @@ FROM tmp-builder AS branch-version-local
 COPY . /polycube
 
 FROM tmp-builder AS branch-version-git
-ARG POLYCUBE_BRANCH=morpheus-k8s
+ARG POLYCUBE_BRANCH=morpheus-k8s-new-bcc
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install git
 RUN git -C / clone --branch ${POLYCUBE_BRANCH} https://github.com/Morpheus-compiler/polycube.git
 
