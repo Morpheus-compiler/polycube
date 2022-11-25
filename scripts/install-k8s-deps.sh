@@ -100,8 +100,8 @@ $SUDO apt update && $SUDO apt install jq -y
 
 install_kubeadm
 install_docker
-# install_golang
-install_golang_latest
+install_golang
+# install_golang_latest
 install_helm
 
 $SUDO swapoff -a
