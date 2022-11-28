@@ -5,14 +5,10 @@ COLOR_GREEN='\033[0;32m'
 COLOR_YELLOW='\033[0;33m'
 COLOR_OFF='\033[0m' # No Color
 
-tmp_ips=$(kubectl get nodes -o wide | grep -v 'control-plane' | awk '{if (NR!=1) {print $6}}')
-ips_str="${tmp_ips//$'\n'/ }"
-
-read -a ips <<< "$ips_str"
-
 ENABLE_ROUTER="true"
 ENABLE_LBRP="true"
 ENABLE_K8S_DISPATCHER="true"
+USE_ALL_NODES="false"
 
 function show_help() {
 usage="$(basename "$0") -r -l -k
@@ -26,7 +22,7 @@ echo "$usage"
 echo
 }
 
-while getopts rlkh option; do
+while getopts rlkah option; do
  case "${option}" in
  h|\?)
   show_help
@@ -38,6 +34,8 @@ while getopts rlkh option; do
 	;;
  k) ENABLE_K8S_DISPATCHER="false"
 	;;
+ a) USE_ALL_NODES="true"
+	;;
  :)
   echo "Option -$OPTARG requires an argument." >&2
   show_help
@@ -45,6 +43,15 @@ while getopts rlkh option; do
   ;;
  esac
 done
+
+if [ $USE_ALL_NODES == "true" ]; then
+    tmp_ips=$(kubectl get nodes -o wide | awk '{if (NR!=1) {print $6}}')
+else
+    tmp_ips=$(kubectl get nodes -o wide | grep -v 'control-plane' | awk '{if (NR!=1) {print $6}}')
+fi
+
+ips_str="${tmp_ips//$'\n'/ }"
+read -a ips <<< "$ips_str"
 
 if [ $ENABLE_LBRP == "true" ]; then
     # Start Morpheus on intLbrp
