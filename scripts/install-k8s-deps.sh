@@ -53,11 +53,7 @@ install_golang() {
     # Go is not available, so let's add to the list of required packages
     PACKAGES+="golang-go" # needed for polycubectl and pcn-k8s
     
-    # Checking whether the major release is lower or the minor
-    if  (( os_major < os_limit_major || ( os_major == os_limit_major && os_minor < os_limit_minor ) ))
-    then
-      $SUDO add-apt-repository ppa:longsleep/golang-backports -y || true
-    fi
+    $SUDO add-apt-repository ppa:longsleep/golang-backports -y || true
 
     $SUDO apt update
     $SUDO bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -yq $PACKAGES"
