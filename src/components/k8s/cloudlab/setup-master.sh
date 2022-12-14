@@ -157,7 +157,8 @@ install_ssh_keys() {
 
     # If you want to permit login authenticated by the auto-generated key,
     # then append the public half to the authorized_keys file:
-    grep -q -f $USER_HOME/.ssh/ansible.pub $USER_HOME/.ssh/authorized_keys || cat $USER_HOME/.ssh/ansible.pub >> $USER_HOME/.ssh/authorized_keys
+    #grep -q -f $USER_HOME/.ssh/ansible.pub $USER_HOME/.ssh/authorized_keys || cat $USER_HOME/.ssh/ansible.pub >> $USER_HOME/.ssh/authorized_keys
+    cat $USER_HOME/.ssh/ansible.pub >> $USER_HOME/.ssh/authorized_keys
     popd
 }
 

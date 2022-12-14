@@ -49,3 +49,8 @@
       ansible.builtin.file:
         path: "{{ ansible_env.HOME }}/node_joined.txt"
         state: "absent"
+        
+    - name: Clean up label_worker_nodes
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/label_worker_nodes.txt"
+        state: "absent"

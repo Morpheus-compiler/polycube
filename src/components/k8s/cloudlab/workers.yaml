@@ -10,6 +10,12 @@
       set_fact:
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
+    - name: add node label
+      shell: "{{ node_label_path | default('/local/') }}label-worker-nodes.sh {{ hostvars[inventory_hostname]['ansible_env'].SSH_CONNECTION.split(' ')[2] }} >> label_worker_nodes.txt"
+      args:
+        chdir: $HOME
+        creates: label_worker_nodes.txt
+
 - hosts: workers
   become: yes
   tasks:
