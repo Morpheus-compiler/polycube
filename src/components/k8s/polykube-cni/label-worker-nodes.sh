@@ -6,5 +6,5 @@ nodes_str="${tmp_nodes//$'\n'/ }"
 read -a nodes <<< "$nodes_str"
 
 for node in "${nodes[@]}"; do
-    kubectl label ${node} node-role.kubernetes.io/worker=worker
+    kubectl label node ${node} node-role.kubernetes.io/worker=worker
 done
