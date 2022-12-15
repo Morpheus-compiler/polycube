@@ -22,6 +22,15 @@
         chdir: $HOME
         creates: node_joined.txt
 
+- hosts: master
+  become: yes
+  tasks:
+    - name: add node label
+      shell: "/local/label-worker-nodes.sh >> label_worker_nodes.txt"
+      args:
+        chdir: $HOME
+        creates: label_worker_nodes.txt
+
 - hosts: all
   become: yes
   tasks:
@@ -39,11 +48,6 @@
       args:
         chdir: $HOME
         creates: disable_ht.txt
-    - name: add node label
-      shell: "/local/label-worker-nodes.sh >> label_worker_nodes.txt"
-      args:
-        chdir: $HOME
-        creates: label_worker_nodes.txt
 
 - hosts: all
   gather_facts: false
