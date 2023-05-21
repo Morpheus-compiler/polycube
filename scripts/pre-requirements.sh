@@ -96,7 +96,7 @@ get_yaml_cpp() {
   git clone --depth 1 --branch yaml-cpp-0.7.0 https://github.com/jbeder/yaml-cpp.git
   mkdir -p "$YAML_CPP_BUILD_DIR"
   cd "$YAML_CPP_BUILD_DIR"
-  cmake ..
+  cmake -DYAML_CPP_BUILD_TESTS=OFF ..
   make -j $(getconf _NPROCESSORS_ONLN)
   $SUDO make install
 
