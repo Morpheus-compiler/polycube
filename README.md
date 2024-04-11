@@ -7,7 +7,7 @@
 
 ``Polycube`` is an **open source** software framework that provides **fast** and **lightweight** **network functions** such as bridges, routers, firewalls, and others.
 
-Polycube services, called `cubes`, can be composed to build arbitrary **service chains** and provide custom network connectivity to **namespaces**, **containers**, **virtual machines**, and **physical hosts**.
+Polycube services, called `cubes`, can be composed to build arbitrary **service chains** and provide custom network connectivity to **namespaces**, **containers**, **virtual machines**, and **physical hosts**
 
 For more information, jump to the project [Documentation](https://polycube-network.readthedocs.io/en/latest/).
 
